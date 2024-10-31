@@ -34,8 +34,8 @@
   function selectItem(itemName) {
     selectedItem = itemName;
     showDropdown = false;
+    updateSelection(itemName);
   }
-  
   // Update category and price when a matching item is selected
   function updateSelection(itemName) {
     const item = groceries.find((grocery) => grocery.name.toLowerCase() === itemName.toLowerCase());
