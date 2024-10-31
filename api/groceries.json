@@ -1,305 +1,304 @@
 {
     "groceries": [
-      {
-        "name": "Beras",
-        "category": "Pokok",
-        "price": "70,000"
-      },
-      {
-        "name": "Minyak Goreng",
-        "category": "Pokok",
-        "price": "18,000"
-      },
-      {
-        "name": "Gula Pasir",
-        "category": "Pokok",
-        "price": "13,000"
-      },
-      {
-        "name": "Telur",
-        "category": "Pokok",
-        "price": "25,000"
-      },
-      {
-        "name": "Garam",
-        "category": "Pokok",
-        "price": "5,000"
-      },
-      {
-        "name": "Tepung Terigu",
-        "category": "Pokok",
-        "price": "10,000"
-      },
-      {
-        "name": "Mie Instan",
-        "category": "Pokok",
-        "price": "2,500"
-      },
-      {
-        "name": "Roti Tawar",
-        "category": "Roti",
-        "price": "15,000"
-      },
-      {
-        "name": "Daging Ayam",
-        "category": "Daging",
-        "price": "40,000"
-      },
-      {
-        "name": "Daging Sapi",
-        "category": "Daging",
-        "price": "130,000"
-      },
-      {
-        "name": "Ikan",
-        "category": "Seafood",
-        "price": "30,000"
-      },
-      {
-        "name": "Tahu",
-        "category": "Protein",
-        "price": "8,000"
-      },
-      {
-        "name": "Tempe",
-        "category": "Protein",
-        "price": "5,000"
-      },
-      {
-        "name": "Susu",
-        "category": "Produk Susu",
-        "price": "18,000"
-      },
-      {
-        "name": "Keju",
-        "category": "Produk Susu",
-        "price": "35,000"
-      },
-      {
-        "name": "Mentega",
-        "category": "Produk Susu",
-        "price": "15,000"
-      },
-      {
-        "name": "Kentang",
-        "category": "Sayuran",
-        "price": "10,000"
-      },
-      {
-        "name": "Wortel",
-        "category": "Sayuran",
-        "price": "8,000"
-      },
-      {
-        "name": "Tomat",
-        "category": "Sayuran",
-        "price": "10,000"
-      },
-      {
-        "name": "Bawang Merah",
-        "category": "Bumbu Dapur",
-        "price": "30,000"
-      },
-      {
-        "name": "Bawang Putih",
-        "category": "Bumbu Dapur",
-        "price": "30,000"
-      },
-      {
-        "name": "Kubis",
-        "category": "Sayuran",
-        "price": "6,000"
-      },
-      {
-        "name": "Bayam",
-        "category": "Sayuran",
-        "price": "4,000"
-      },
-      {
-        "name": "Apel",
-        "category": "Buah-buahan",
-        "price": "25,000"
-      },
-      {
-        "name": "Pisang",
-        "category": "Buah-buahan",
-        "price": "15,000"
-      },
-      {
-        "name": "Jeruk",
-        "category": "Buah-buahan",
-        "price": "20,000"
-      },
-      {
-        "name": "Semangka",
-        "category": "Buah-buahan",
-        "price": "25,000"
-      },
-      {
-        "name": "Cabai",
-        "category": "Bumbu Dapur",
-        "price": "5,000"
-      },
-      {
-        "name": "Kecap Manis",
-        "category": "Bumbu Masakan",
-        "price": "10,000"
-      },
-       {
-        "name": "Air Mineral Isi Ulang(Galon)",
-        "category": "Minuman",
-        "price": "5,000"
-      },
-      {
-        "name": "Air Mineral Aqua (Galon)",
-        "category": "Minuman",
-        "price": "18,000"
-      },
-      {
-        "name": "Stroberi",
-        "category": "Buah-buahan",
-        "price": "40,000"
-      },
-      {
-        "name": "Anggur",
-        "category": "Buah-buahan",
-        "price": "60,000"
-      },
-      {
-        "name": "Alpukat",
-        "category": "Buah-buahan",
-        "price": "20,000"
-      },
-      {
-        "name": "Pepaya",
-        "category": "Buah-buahan",
-        "price": "15,000"
-      },
-      {
-        "name": "Brokoli",
-        "category": "Sayuran",
-        "price": "25,000"
-      },
-      {
-        "name": "Paprika",
-        "category": "Sayuran",
-        "price": "20,000"
-      },
-      {
-        "name": "Mentimun",
-        "category": "Sayuran",
-        "price": "8,000"
-      },
-      {
-        "name": "Kangkung",
-        "category": "Sayuran",
-        "price": "5,000"
-      },
-      {
-        "name": "Keju Cheddar",
-        "category": "Produk Susu",
-        "price": "30,000"
-      },
-      {
-        "name": "Keju Mozzarella",
-        "category": "Produk Susu",
-        "price": "50,000"
-      },
-      {
-        "name": "Yogurt",
-        "category": "Produk Susu",
-        "price": "15,000"
-      },
-      {
-        "name": "Roti Putih",
-        "category": "Biji-bijian & Roti",
-        "price": "30,000"
-      },
-      {
-        "name": "Roti Gandum Utuh",
-        "category": "Biji-bijian & Roti",
-        "price": "25,000"
-      },
-      {
-        "name": "Nasi Putih",
-        "category": "Biji-bijian & Roti",
-        "price": "10,000"
-      },
-      {
-        "name": "Nasi Merah",
-        "category": "Biji-bijian & Roti",
-        "price": "15,000"
-      },
-      {
-        "name": "Spaghetti",
-        "category": "Biji-bijian & Roti",
-        "price": "20,000"
-      },
-      {
-        "name": "Makaroni",
-        "category": "Biji-bijian & Roti",
-        "price": "15,000"
-      },
-      {
-        "name": "Minyak Zaitun",
-        "category": "Bumbu & Rempah",
-        "price": "50,000"
-      },
-      {
-        "name": "Cuka Balsamik",
-        "category": "Bumbu & Rempah",
-        "price": "30,000"
-      },
-      {
-        "name": "Cuka Sari Apel",
-        "category": "Bumbu & Rempah",
-        "price": "20,000"
-      },
-      {
-        "name": "Saus Tomat",
-        "category": "Bumbu & Rempah",
-        "price": "10,000"
-      },
-      {
-        "name": "Mustard",
-        "category": "Bumbu & Rempah",
-        "price": "15,000"
-      },
-      {
-        "name": "Merica",
-        "category": "Bumbu & Rempah",
-        "price": "10,000"
-      },
-      {
-        "name": "Baking Powder",
-        "category": "Bahan Pembuat Kue",
-        "price": "10,000"
-      },
-      {
-        "name": "Tissue",
-        "category": "Barang Rumah Tangga",
-        "price": "10,000"
-      },
-      {
-        "name": "Sampo",
-        "category": "Barang Rumah Tangga",
-        "price": "20,000"
-      },
-      {
-        "name": "Sabun Mandi",
-        "category": "Barang Rumah Tangga",
-        "price": "10,000"
-      },
-      {
-        "name": "Sabun Cuci Piring",
-        "category": "Barang Rumah Tangga",
-        "price": "10,000"
-      },
-      {
-        "name": "Detergen Pakaian",
-        "category": "Barang Rumah Tangga",
-        "price": "20,000"
-      }
+        {
+            "name": "Beras",
+            "category": "Pokok",
+            "price": "70,000"
+        },
+        {
+            "name": "Minyak Goreng",
+            "category": "Pokok",
+            "price": "18,000"
+        },
+        {
+            "name": "Gula Pasir",
+            "category": "Pokok",
+            "price": "13,000"
+        },
+        {
+            "name": "Telur",
+            "category": "Pokok",
+            "price": "25,000"
+        },
+        {
+            "name": "Garam",
+            "category": "Pokok",
+            "price": "5,000"
+        },
+        {
+            "name": "Tepung Terigu",
+            "category": "Pokok",
+            "price": "10,000"
+        },
+        {
+            "name": "Mie Instan",
+            "category": "Pokok",
+            "price": "2,500"
+        },
+        {
+            "name": "Roti Tawar",
+            "category": "Roti",
+            "price": "15,000"
+        },
+        {
+            "name": "Daging Ayam",
+            "category": "Daging",
+            "price": "40,000"
+        },
+        {
+            "name": "Daging Sapi",
+            "category": "Daging",
+            "price": "130,000"
+        },
+        {
+            "name": "Ikan",
+            "category": "Seafood",
+            "price": "30,000"
+        },
+        {
+            "name": "Tahu",
+            "category": "Protein",
+            "price": "8,000"
+        },
+        {
+            "name": "Tempe",
+            "category": "Protein",
+            "price": "5,000"
+        },
+        {
+            "name": "Susu",
+            "category": "Produk Susu",
+            "price": "18,000"
+        },
+        {
+            "name": "Keju",
+            "category": "Produk Susu",
+            "price": "35,000"
+        },
+        {
+            "name": "Mentega",
+            "category": "Produk Susu",
+            "price": "15,000"
+        },
+        {
+            "name": "Kentang",
+            "category": "Sayuran",
+            "price": "10,000"
+        },
+        {
+            "name": "Wortel",
+            "category": "Sayuran",
+            "price": "8,000"
+        },
+        {
+            "name": "Tomat",
+            "category": "Sayuran",
+            "price": "10,000"
+        },
+        {
+            "name": "Bawang Merah",
+            "category": "Bumbu Dapur",
+            "price": "30,000"
+        },
+        {
+            "name": "Bawang Putih",
+            "category": "Bumbu Dapur",
+            "price": "30,000"
+        },
+        {
+            "name": "Kubis",
+            "category": "Sayuran",
+            "price": "6,000"
+        },
+        {
+            "name": "Bayam",
+            "category": "Sayuran",
+            "price": "4,000"
+        },
+        {
+            "name": "Apel",
+            "category": "Buah-buahan",
+            "price": "25,000"
+        },
+        {
+            "name": "Pisang",
+            "category": "Buah-buahan",
+            "price": "15,000"
+        },
+        {
+            "name": "Jeruk",
+            "category": "Buah-buahan",
+            "price": "20,000"
+        },
+        {
+            "name": "Semangka",
+            "category": "Buah-buahan",
+            "price": "25,000"
+        },
+        {
+            "name": "Cabai",
+            "category": "Bumbu Dapur",
+            "price": "5,000"
+        },
+        {
+            "name": "Kecap Manis",
+            "category": "Bumbu Masakan",
+            "price": "10,000"
+        },
+        {
+            "name": "Air Mineral Isi Ulang(Galon)",
+            "category": "Minuman",
+            "price": "5,000"
+        },
+        {
+            "name": "Air Mineral Aqua (Galon)",
+            "category": "Minuman",
+            "price": "18,000"
+        },
+        {
+            "name": "Stroberi",
+            "category": "Buah-buahan",
+            "price": "40,000"
+        },
+        {
+            "name": "Anggur",
+            "category": "Buah-buahan",
+            "price": "60,000"
+        },
+        {
+            "name": "Alpukat",
+            "category": "Buah-buahan",
+            "price": "20,000"
+        },
+        {
+            "name": "Pepaya",
+            "category": "Buah-buahan",
+            "price": "15,000"
+        },
+        {
+            "name": "Brokoli",
+            "category": "Sayuran",
+            "price": "25,000"
+        },
+        {
+            "name": "Paprika",
+            "category": "Sayuran",
+            "price": "20,000"
+        },
+        {
+            "name": "Mentimun",
+            "category": "Sayuran",
+            "price": "8,000"
+        },
+        {
+            "name": "Kangkung",
+            "category": "Sayuran",
+            "price": "5,000"
+        },
+        {
+            "name": "Yogurt",
+            "category": "Produk Susu",
+            "price": "15,000"
+        },
+        {
+            "name": "Roti Putih",
+            "category": "Biji-bijian & Roti",
+            "price": "30,000"
+        },
+        {
+            "name": "Roti Gandum Utuh",
+            "category": "Biji-bijian & Roti",
+            "price": "25,000"
+        },
+        {
+            "name": "Nasi Putih",
+            "category": "Biji-bijian & Roti",
+            "price": "10,000"
+        },
+        {
+            "name": "Nasi Merah",
+            "category": "Biji-bijian & Roti",
+            "price": "15,000"
+        },
+        {
+            "name": "Spaghetti",
+            "category": "Biji-bijian & Roti",
+            "price": "20,000"
+        },
+        {
+            "name": "Makaroni",
+            "category": "Biji-bijian & Roti",
+            "price": "15,000"
+        },
+        {
+            "name": "Minyak Zaitun",
+            "category": "Bumbu & Rempah",
+            "price": "50,000"
+        },
+        {
+            "name": "Cuka Balsamik",
+            "category": "Bumbu & Rempah",
+            "price": "30,000"
+        },
+        {
+            "name": "Cuka Sari Apel",
+            "category": "Bumbu & Rempah",
+            "price": "20,000"
+        },
+        {
+            "name": "Saus Tomat",
+            "category": "Bumbu & Rempah",
+            "price": "10,000"
+        },
+        {
+            "name": "Mustard",
+            "category": "Bumbu & Rempah",
+            "price": "15,000"
+        },
+        {
+            "name": "Merica",
+            "category": "Bumbu & Rempah",
+            "price": "10,000"
+        },
+        {
+            "name": "Baking Powder",
+            "category": "Bahan Pembuat Kue",
+            "price": "10,000"
+        },
+        {
+            "name": "Tissue",
+            "category": "Barang Rumah Tangga",
+            "price": "10,000"
+        },
+        {
+            "name": "Sampo",
+            "category": "Barang Rumah Tangga",
+            "price": "20,000"
+        },
+        {
+            "name": "Sabun Mandi",
+            "category": "Barang Rumah Tangga",
+            "price": "10,000"
+        },
+        {
+            "name": "Sabun Cuci Piring",
+            "category": "Barang Rumah Tangga",
+            "price": "10,000"
+        },
+        {
+            "name": "Detergen Pakaian",
+            "category": "Barang Rumah Tangga",
+            "price": "20,000"
+        },
+        {
+            "name": "Kecap Asin",
+            "category": "Bumbu Masakan",
+            "price": "10,000"
+        },
+        {
+            "name": "Saus Sambal",
+            "category": "Bumbu & Rempah",
+            "price": "10,000"
+        }
     ]
-  }
-  
+}
