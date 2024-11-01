@@ -400,14 +400,17 @@
     {#if showDropdown}
       <ul class="dropdown">
         {#each filteredItems as item}
-          <li on:click={() => selectItem(item.name)}>{item.name}</li>
+          <li>
+            <button type="button" on:click={() => selectItem(item.name)}>{item.name}</button>
+          </li>
         {/each}
       </ul>
     {/if}
   </div>
 
   <!-- Input for Category and dropdown for category list -->
-  <div class="category-input">
+  <div class="category-input" style="position: relative;">
+    <label for="category">Category:</label>
     <input
       type="text"
       bind:value={selectedCategory}
@@ -420,7 +423,9 @@
     {#if showCategoryDropdown}
       <ul class="dropdown">
         {#each filteredCategories as category}
-          <li on:click={() => selectCategory(category)}>{category}</li>
+          <li>
+            <button type="button" on:click={() => selectCategory(category)}>{category}</button>
+          </li>
         {/each}
       </ul>
     {/if}
@@ -500,7 +505,7 @@
     margin-bottom: 5px;
   }
 
-  .item-name {
+  .item-name, .category-input {
     position: relative;
     width: 100%;
   }
@@ -527,16 +532,34 @@
     /* border-radius: 4px; */
   }
 
-  .dropdown li {
-    cursor: pointer;
-    padding: 8px;
-    background: #444; /* Update list item background color for better contrast */
-    color: white; /* Update text color to be visible on darker background */
-  }
+.dropdown li {
+  margin: 0; /* Remove default margin */
+}
 
-  .dropdown li:hover {
-    background: #555; /* Darker background on hover for better visual feedback */
-  }
+.dropdown button {
+  width: 100%;
+  padding: 2px 8px;
+  /* background: #444;  */
+  background: none; /* Remove default button background */
+  color: white;
+  border: none;
+  text-align: left; /* Align text to the left */
+  font-size: 14px; 
+  cursor: pointer;
+}
+
+.dropdown button:hover {
+  background: #444; /* Darker shade on hover for better visual feedback */
+}
+.dropdown button:focus {
+  outline: none; /* Remove default outline on focus */
+  background: #555; /* Change background color when focused for accessibility */
+  border-left: 3px solid #888; /* Optional: Add a visual indicator when focused */
+}
+
+.dropdown button:active {
+  background: #666; /* A slightly different shade when button is pressed */
+}
 
   .notification {
     background-color: #4caf50;
