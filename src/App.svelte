@@ -18,11 +18,18 @@
   let showNotification = false;
   let refreshMessage = ''; // Variable to store refresh message
   let showRefreshMessage = false; // Boolean to control display of message
+  let showInputs = false; // Controls visibility of inputs
+  let showAddButton = true;  // State to control button visibility
+  let showCalculator = false;
+  let itemToDelete = null; // Track which item is pending deletion
+
+
+
 
   // Load groceries from JSON file
   async function loadGroceries() {
     try {
-      const response = await fetch('http://localhost:8000/api/serve_groceries.php?t=' + new Date().getTime(), {
+      const response = await fetch('/api/serve_groceries.php?t=' + new Date().getTime(), {
         cache: 'no-cache' // Prevent caching
       });
       groceries = (await response.json()).groceries;
@@ -62,7 +69,7 @@
 
     if (navigator.onLine) {
       try {
-        const response = await fetch('http://localhost:8000/api/get_purchases.php');
+        const response = await fetch('/api/get_purchases.php');
         const result = await response.json();
 
         if (result.status === 'success') {
@@ -93,7 +100,7 @@
 
       for (const grocery of groceries) {
         try {
-          const response = await fetch('http://localhost:8000/api/update_groceries.php', {
+          const response = await fetch('/api/update_groceries.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(grocery)
@@ -224,11 +231,13 @@
   // Add selected item to purchased items list
   async function addToPurchasedList() {
   if (selectedItem && selectedCategory && selectedPrice && purchaseDate) {
+    showAddButton = false;
+    
     const newItem = {
       name: selectedItem,
       category: selectedCategory,
       price: parseFloat(selectedPrice.replace(',', '')),
-      date: purchaseDate
+      date: purchaseDate,
     };
 
     // Step 1: Add to groceries.json and groceries within IndexedDB if item doesn't exist
@@ -249,7 +258,7 @@
       }
 
       try {
-        const response = await fetch('http://localhost:8000/api/update_groceries.php', {
+        const response = await fetch('/api/update_groceries.php', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -274,7 +283,7 @@
 
     // Step 2: Add to purchased items list in SQLite database
     try {
-      const response = await fetch('http://localhost:8000/api/add_purchase.php', {
+      const response = await fetch('/api/add_purchase.php', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'  
@@ -319,10 +328,15 @@
       selectedPrice = "";
       purchaseDate = new Date().toISOString().split('T')[0];
 
+      showInputs = false; // Hide input fields
+      showCalculator = false; // Hide calculator if open
+
+
       // Show notification for item added
       showNotification = true;
       setTimeout(() => {
         showNotification = false;
+        showAddButton = true;
       }, 3000); // Hide notification after 3 seconds
     } else {
       alert("Please fill in all fields, including date.");
@@ -341,32 +355,88 @@
   // Function to delete a purchased item
   async function deleteItem(itemId) {
     try {
-      const response = await fetch('http://localhost:8000/api/delete_purchase.php', {
+      // First update the UI immediately for better user experience
+      purchasedItems = purchasedItems.filter(item => item.id !== itemId);
+
+      // Then delete from database
+      const response = await fetch('/api/delete_purchase.php', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ id: itemId })
       });
-      const result = await response.json();
 
+      const result = await response.json();
+      
       if (result.status === 'success') {
-        purchasedItems = purchasedItems.filter(item => item.id !== itemId);
+        // purchasedItems = purchasedItems.filter(item => item.id !== itemId);
         console.log("Item deleted successfully.");
       } else {
         console.error(result.message);
       }
+
+      // Also delete from IndexedDB
+      const db = await openDatabase();
+      await db.delete('purchases', itemId);
     } catch (error) {
       console.error('Error deleting item:', error);
     }
   }
 
+  // Handle click and hold to delete an item
+  function handleHoldStart(itemId, event) {
+    event.preventDefault(); // Prevent default button behavior
+    event.stopPropagation(); // Ensure that no child content prevents the event from reaching the `li`const button = event.currentTarget;
+    
+    const button = event.currentTarget;
+    let holdTimer;
+    let isHolding = false;
 
+    // Add visual feedback class
+    button.classList.add('holding');
+    
+    // Start the hold timer
+    holdTimer = setTimeout(() => {
+      isHolding = true;
+      deleteItem(itemId);
+      button.classList.remove('holding');
+    }, 1000);
+ // 1000 ms (1 second) hold duration
+
+    // Attach event listeners to cancel the timer if the user releases the mouse
+    // const element = document.querySelector(`button[data-id="${itemId}"]`);
+
+    // Cancel hold if the mouse is released or leaves the element
+    function cancelHold() {
+      if (!isHolding) {
+        clearTimeout(holdTimer);
+        button.classList.remove('holding');
+      }
+    }
+
+    // Add event listeners for hold cancellation
+    button.addEventListener('mouseup', cancelHold, { once: true });
+    button.addEventListener('mouseleave', cancelHold, { once: true });
+    button.addEventListener('touchend', cancelHold, { once: true });
+    button.addEventListener('touchcancel', cancelHold, { once: true });
+  }
 
   // Swipe handler for deleting an item
   function handleSwipe(event, itemId) {
+    console.log("Swipe detected for item:", itemId)
     if (event.detail.direction === 'left') {
-      deleteItem(itemId);
+      console.log("Swipe left detected for item ID:", itemId); // Add this line for debugging
+      // Add a class to trigger swipe animation
+      const itemElement = document.querySelector(`li[data-id="${itemId}"]`);
+      if (itemElement) {
+        itemElement.classList.add('swiped-left');
+        
+        // Wait for the animation to complete before deleting the item
+        setTimeout(() => {
+          deleteItem(itemId);
+        }, 500); // Duration should match the animation length
+      }
     }
   }
 
@@ -375,6 +445,17 @@
     // Get unique dates from purchasedItems and sort them in descending order
     return Array.from(new Set(purchasedItems.map(item => item.date)))
       .sort((a, b) => new Date(b) - new Date(a));
+  }
+
+  // Handle calculator button click
+  function onCalculatorButtonClick(value) {
+    if (value === "C") {
+      selectedPrice = "";
+    } else if (value === "Del") {
+      selectedPrice = selectedPrice.slice(0, -1);
+    } else {
+      selectedPrice += value;
+    }
   }
 </script>
 
@@ -386,66 +467,100 @@
     <div class="notification">Item added to purchased list!</div>
   {/if}
 
-  <!-- Input for search and dropdown -->
-  <div class="item-name">
-    <input
-      type="text"
-      bind:value={selectedItem}
-      on:input={filterItems}
-      on:focus={showAllItemsOnFocus}
-      on:blur={hideDropdown}
-      placeholder="Type to search or add item"
-      autocomplete="off"
-    />
-    {#if showDropdown}
-      <ul class="dropdown">
-        {#each filteredItems as item}
-          <li>
-            <button type="button" on:click={() => selectItem(item.name)}>{item.name}</button>
-          </li>
+  <!-- Plus Button to Show Inputs -->
+  {#if !showInputs}
+    <button class="plus-button" on:click={() => (showInputs = true)}>+</button>
+  {/if}
+
+  <!-- Input Fields for Adding Items -->
+  {#if showInputs}
+    <div class="input-section">
+      <!-- Input for search and dropdown -->
+      <div class="item-name">
+        <input
+          type="text"
+          bind:value={selectedItem}
+          on:input={filterItems}
+          on:focus={showAllItemsOnFocus}
+          on:blur={hideDropdown}
+          placeholder="Type to search or add item"
+          autocomplete="off"
+        />
+        {#if showDropdown}
+          <ul class="dropdown">
+            {#each filteredItems as item}
+              <li>
+                <button type="button" on:click={() => selectItem(item.name)}>{item.name}</button>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+      </div>
+
+      <!-- Input for Category and dropdown for category list -->
+      <div class="category-input" style="position: relative;">
+        <label for="category">Category:</label>
+        <input
+          type="text"
+          bind:value={selectedCategory}
+          on:input={filterCategories}
+          on:focus={showAllCategoriesOnFocus}
+          on:blur={hideCategoryDropdown}
+          placeholder="Select or type category"
+          autocomplete="off"
+        />
+        {#if showCategoryDropdown}
+          <ul class="dropdown">
+            {#each filteredCategories as category}
+              <li>
+                <button type="button" on:click={() => selectCategory(category)}>{category}</button>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+      </div>
+
+      <!-- Inputs for Price and Date (User can edit them) -->
+      <div>
+        <label for="price">Price:</label>
+        <input 
+          type="text" 
+          id="price" 
+          bind:value={selectedPrice}
+          on:focus={() => (showCalculator = true)}
+        />
+
+        <label for="date">Purchase Date:</label>
+        <input type="date" id="date" bind:value={purchaseDate} />
+      </div>
+
+      <!-- Button to add to purchased list -->
+      {#if showAddButton}
+        <button 
+          class:fade-out={!showAddButton} 
+          on:click={addToPurchasedList}
+        >
+          Add to Purchased List
+        </button>
+      {/if}
+
+      <!-- Calculator Component -->
+      {#if showCalculator}
+      <div class="calculator">
+        {#each [["7", "8", "9"], ["4", "5", "6"], ["1", "2", "3"], ["C", "0", "Del"]] as row}
+          <div class="calculator-row">
+            {#each row as button}
+              <button on:click={() => onCalculatorButtonClick(button)}>{button}</button>
+            {/each}
+          </div>
         {/each}
-      </ul>
-    {/if}
-  </div>
+      </div>
+      {/if}
+      <!-- Button to refresh groceries data manually -->
+      <!-- <button on:click={loadGroceries}>Refresh Groceries</button> -->
 
-  <!-- Input for Category and dropdown for category list -->
-  <div class="category-input" style="position: relative;">
-    <label for="category">Category:</label>
-    <input
-      type="text"
-      bind:value={selectedCategory}
-      on:input={filterCategories}
-      on:focus={showAllCategoriesOnFocus}
-      on:blur={hideCategoryDropdown}
-      placeholder="Select or type category"
-      autocomplete="off"
-    />
-    {#if showCategoryDropdown}
-      <ul class="dropdown">
-        {#each filteredCategories as category}
-          <li>
-            <button type="button" on:click={() => selectCategory(category)}>{category}</button>
-          </li>
-        {/each}
-      </ul>
-    {/if}
-  </div>
-
-  <!-- Inputs for Price and Date (User can edit them) -->
-  <div>
-
-    <label for="price">Price:</label>
-    <input type="text" id="price" bind:value={selectedPrice} />
-
-    <label for="date">Purchase Date:</label>
-    <input type="date" id="date" bind:value={purchaseDate} />
-  </div>
-
-  <!-- Button to add to purchased list -->
-  <button on:click={addToPurchasedList}>Add to Purchased List</button>
-
-  <!-- Button to refresh groceries data manually -->
-  <!-- <button on:click={loadGroceries}>Refresh Groceries</button> -->
+    </div>
+  {/if}
 
   <!-- Grouped List of Purchased Items -->
   <h2>Purchased Items</h2>
@@ -468,18 +583,19 @@
       </div>
       <ul class="purchased-items-list">
         {#each purchasedItems.filter((item) => item.date === date) as item, index}
-          <li
-            class="purchased-item"
-            use:swipe={{
-              threshold: 30, // Minimum distance to recognize swipe
-              onSwipe: (event) => handleSwipe(event, item.id),
-            }}
-          >
-            <div class="item-content">
-              <span class="item-number">{index + 1}.</span>
-              <span class="item-details">{item.name} - {item.category}</span>
-              <span class="item-price">Rp {item.price.toLocaleString()}</span>
-            </div>
+          <li>
+            <button
+              class="purchased-item"
+              data-id={item.id}
+              on:mousedown={(event) => handleHoldStart(item.id, event)}
+              on:touchstart={(event) => handleHoldStart(item.id, event)}
+            >
+              <div class="item-content">
+                <span class="item-number">{index + 1}.</span>
+                <span class="item-details">{item.name} - {item.category}</span>
+                <span class="item-price">Rp {item.price.toLocaleString()}</span>
+              </div>
+            </button>
           </li>
         {/each}
       </ul>
@@ -489,9 +605,16 @@
 
 <style>
   main {
-    max-width: 600px;
+    max-width: 90%;
+    width: 600px;
     margin: 0 auto;
     padding: 20px;
+    height: 100vh;
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch; /* Enables smooth scrolling on iOS */
   }
 
   label,
@@ -505,16 +628,76 @@
     margin-bottom: 5px;
   }
 
+  .plus-button {
+  margin: 10px auto; /* Adjust margin to fit mobile screens */
+
+  font-size: 2.5rem; /* Keeps the plus sign visible but adjust based on preference */
+  width: 70px; /* Set width to make it smaller */
+  height: 70px; /* Set height equal to width to form a perfect circle */
+  padding: 0; /* Remove padding to avoid making it larger */
+  border: none;
+  /* background: #444; */
+  background: linear-gradient(135deg, #32CD32, #228B22);
+  color: white;
+  cursor: pointer;
+  text-align: center;
+  border-radius: 50%; /* Make it a perfect circle */
+  transition: background 0.3s, transform 0.2s;
+  display: flex; /* Center the "+" sign */
+  align-items: center; /* Vertical centering */
+  justify-content: center; /* Horizontal centering */
+  margin: 20px auto; /* Center the button horizontally */
+  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+.plus-button:hover {
+  /* background: #555; */
+  transform: scale(1.1); /* Slight zoom effect for interaction feedback */
+  box-shadow: 0px 6px 15px rgba(0, 0, 0, 0.3);
+}
+
+.plus-button:active {
+    transform: scale(0.95);
+    box-shadow: 0px 3px 8px rgba(0, 0, 0, 0.2);
+  }
+
+  .input-section {
+    margin-top: 20px;
+  }
+
   .item-name, .category-input {
     position: relative;
     width: 100%;
   }
 
-  input,
+  input {
+    width: 80%;
+    padding: 10px;
+    margin-bottom: 10px;
+    font-size: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    transition: box-shadow 0.2s;
+  }
+
+  input:focus {
+    box-shadow: 0px 0px 10px rgba(50, 205, 50, 0.5);
+    outline: none;
+  }
+
   button {
     width: 100%;
     padding: 5px;
     margin-bottom: 10px;
+    font-size: 1.5rem;
+    cursor: pointer;
+    transition: opacity 0.5s ease-in-out;
+    background: linear-gradient(135deg, #32CD32, #228B22);
+  }
+
+  .fade-out {
+    opacity: 0;
+    pointer-events: none; /* Prevent clicking while fading out */
   }
 
   .dropdown {
@@ -522,12 +705,13 @@
     padding: 0;
     margin: 5px;
     border: 1px solid #ccc;
-    max-height: 150px;
+    max-height: 300px;
     overflow-y: auto;
     background: #333; /* Update background color to match the theme */
     position: absolute;
     width: 100%; /* Set width to match the input field */
     z-index: 10;
+    font-size: 1.5rem; 
     /* box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); */
     /* border-radius: 4px; */
   }
@@ -544,7 +728,7 @@
   color: white;
   border: none;
   text-align: left; /* Align text to the left */
-  font-size: 14px; 
+  font-size: 1.5rem; 
   cursor: pointer;
 }
 
@@ -560,6 +744,7 @@
 .dropdown button:active {
   background: #666; /* A slightly different shade when button is pressed */
 }
+
 
   .notification {
     background-color: #4caf50;
@@ -618,6 +803,7 @@
     padding: 10px;
     border-radius: 4px;
     margin-bottom: 10px;
+    color: white;
     background-color: #555;
   }
 
@@ -627,15 +813,37 @@
 
   .purchased-items-list {
     list-style-type: none;
+    overflow-x: auto; /* Allow horizontal scrolling */
     padding-left: 0;
+    margin-left: 0; /* Remove any unwanted left margin */
   }
 
-  .purchased-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 5px 0;
+.purchased-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 0;
+  z-index: 100;
+  background: none;
+  transition: background-color 0.3s ease;
+  cursor: pointer;
+
+}
+
+  .purchased-item.swiped-left {
+  transform: translateX(-100%) !important; /* Move the element off to the left */
+  opacity: 0; /* Fade out during the swipe */
+}
+
+  .purchased-item:hover {
+    background-color: #444;
   }
+
+  .purchased-item.holding {
+    background-color: #666;
+    transform: scale(0.98);
+  }
+
 .item-content {
   display: flex;
   width: 100%;
@@ -654,4 +862,59 @@
     text-align: right;
     width: 100px;
   }
+
+
+  @media (max-width: 768px) {
+  main {
+    padding: 10px; /* Reduce padding for smaller screens */
+  }
+
+  .plus-button {
+    width: 60px;
+    height: 60px;
+    font-size: 2.5rem; /* Adjust font size for smaller screens */
+  }
+
+  /* .purchase-header {
+    flex-direction: column; 
+    align-items: flex-start;
+  } */
+
+  .item-price {
+    text-align: left; /* Ensure better alignment on smaller screens */
+    width: auto;
+  }
+}
+
+.calculator {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    width: 80%;
+    margin-top: 15px;
+  }
+
+  .calculator-row {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .calculator button {
+    width: 100%;
+    padding: 20px;
+    font-size: 1.5rem;
+    border: none;
+    border-radius: 8px;
+    background: #32CD32;
+    color: white;
+    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .calculator button:hover {
+    background: #228B22;
+  }
+
 </style>
