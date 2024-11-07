@@ -3,8 +3,8 @@ const CACHE_NAME = 'budget-app-cache-v1';
 const urlsToCache = [
   '/',
   '/index.html',
-  '/assets/index-Vqeud8Jb.css', // Adjust these paths as per your build process
-  '/assets/index-3Zt_wy4I.js',
+  '/assets/index-DN2Ky6PN.css', // Adjust these paths as per your build process
+  '/assets/index-B9AVfmn6.js',
   '/api/groceries.json',
   '/manifest.json'
 ];

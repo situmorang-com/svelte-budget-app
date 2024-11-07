@@ -1,28 +1,29 @@
-<script>
+<script lang=ts>
   import { onMount, onDestroy } from 'svelte';
   import { openDB } from 'idb';
   // import groceriesData from '../api/groceries.json'; // Import groceries data from external JSON file
 
-  let groceries = [];
-  let filteredItems = [];
-  let selectedItem = "";
-  let selectedCategory = "";
-  let selectedPrice = "";
-  let showDropdown = false;
-  let showCategoryDropdown = false;
-  let categoryList = [];
-  let filteredCategories = [];
-  let purchasedItems = [];
-  let purchaseDate = new Date().toISOString().split('T')[0];
-  let showNotification = false;
-  let refreshMessage = ''; // Variable to store refresh message
-  let showRefreshMessage = false; // Boolean to control display of message
-  let showInputs = false; // Controls visibility of inputs
-  let showAddButton = true;  // State to control button visibility
-  let showCalculator = false;
-  let calculatorPosition = { top: '0px', left: '0px' };
-  let highlightedItemId = null; // Track which purchased item is highlighted
-  let itemToDelete = null; // Track which item is pending deletion
+  let groceries: any[] = [];
+  let filteredItems: any[] = [];
+  let selectedItem: string = "";
+  let selectedCategory: string = "";
+  let selectedPrice: string = "";
+  let selectedQuantity: number = 1;
+  let showDropdown: boolean = false;
+  let showCategoryDropdown: boolean = false;
+  let categoryList: string[] = [];
+  let filteredCategories: string[] = [];
+  let purchasedItems: any[] = [];
+  let purchaseDate: string = new Date().toISOString().split('T')[0];
+  let showNotification: boolean = false;
+  let refreshMessage: string = ''; // Variable to store refresh message
+  let showRefreshMessage: boolean = false; // Boolean to control display of message
+  let showInputs: boolean = false; // Controls visibility of inputs
+  let showAddButton: boolean = true;  // State to control button visibility
+  let showCalculator: boolean = false;
+  let calculatorPosition: { top: string, left: string } = { top: '0px', left: '0px' };
+  let highlightedItemId: number | null = null; // Track which purchased item is highlighted
+  let itemToDelete: number | null = null; // Track which item is pending deletion
 
   // Load groceries from JSON file
   async function loadGroceries() {
@@ -43,6 +44,16 @@
     } catch (error) {
       console.error('Failed to load groceries data:', error);
     }
+  }
+
+  function clearSelectedItem() {
+    selectedItem = "";
+    showDropdown = false;
+  }
+
+  function clearSelectedCategory() {
+    selectedCategory = "";
+    showCategoryDropdown = false;
   }
 
   // Open or create an IndexedDB local device storage database
@@ -231,11 +242,12 @@
   async function addToPurchasedList() {
   if (selectedItem && selectedCategory && selectedPrice && purchaseDate) {
     showAddButton = false;
-    
+
     const newItem = {
       name: selectedItem,
       category: selectedCategory,
-      price: parseFloat(selectedPrice.replace(',', '')),
+      price: parseFloat(selectedPrice.replace(/,/g, '')) || 0, // Ensure price is parsed as a number
+      quantity: parseInt(selectedQuantity.toString(), 10) || 1, // Convert to number with default value of 1
       date: purchaseDate,
     };
 
@@ -319,12 +331,13 @@
       ];
 
     // Sort purchased items by date after adding a new one
-    purchasedItems = purchasedItems.sort((a, b) => new Date(b.date) - new Date(a.date));
+    purchasedItems = purchasedItems.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
       // Reset selected item, category, and price
       selectedItem = "";
       selectedCategory = "";
       selectedPrice = "";
+      selectedQuantity = 1;
       purchaseDate = new Date().toISOString().split('T')[0];
 
       showInputs = false; // Hide input fields
@@ -343,12 +356,11 @@
   }
 
   // Calculate total amount of purchases for a given date
-  function calculateTotalAmount(date) {
+  function calculateTotalAmount(date: string): string {
     return purchasedItems
       .filter(item => item.date === date)
-      .reduce((total, item) => total + item.price, 0)
-      .toFixed(2)
-      // .replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+      .reduce((total, item) => total + (item.price * item.quantity), 0)
+      .toFixed(2);
   }
 
 
@@ -419,6 +431,14 @@
       .sort((a, b) => new Date(b) - new Date(a));
   }
 
+  function formatNumberWithCommas(value) {
+    // Remove all non-digit characters
+    let cleanedValue = value.replace(/[^\d]/g, '');
+    
+    // Add commas to the number
+    return cleanedValue.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+
   // Handle calculator button click
   function onCalculatorButtonClick(value) {
     if (value === "C") {
@@ -430,19 +450,25 @@
     } else {
       selectedPrice += value;
     }
+
+    // Format price with commas as the user types
+    selectedPrice = formatNumberWithCommas(selectedPrice);
   }
 
+  function handlePriceInput(event) {
+    selectedPrice = formatNumberWithCommas(event.target.value);
+  }
   function handlePriceFocus(event) {
     showCalculator = true;
 
-    // Position the calculator below the input and align with the left edge of the screen
-    const { bottom } = event.target.getBoundingClientRect();
-    const viewportWidth = window.innerWidth;
+  // Get the position of the price input relative to the container
+  const inputRect = event.target.getBoundingClientRect();
+  const containerRect = document.querySelector('.input-section').getBoundingClientRect();
 
-    calculatorPosition = {
-      top: `${bottom + window.scrollY + 5}px`,
-      left: `5px`, // Align to the screen edge to ensure it’s not cut off
-    };
+  calculatorPosition = {
+    top: `${inputRect.bottom - containerRect.top + 10}px`, // Add a slight gap of 10px below the input
+    left: `${inputRect.left - containerRect.left}px` // Align calculator directly under the input
+  };
 
     // Prevent keyboard from showing by blurring the input immediately
     event.target.blur();
@@ -495,10 +521,12 @@
   <!-- Input Fields for Adding Items -->
   {#if showInputs}
     <div class="input-section">
-      <!-- Input for search and dropdown -->
-      <div class="item-name">
+      <!-- Input for Item Name and Dropdown -->
+      <div class="input-wrapper">
+        <label for="item-name">Item Name:</label>
         <input
           type="text"
+          id="item-name"
           bind:value={selectedItem}
           on:input={filterItems}
           on:focus={showAllItemsOnFocus}
@@ -506,6 +534,11 @@
           placeholder="Type to search or add item"
           autocomplete="off"
         />
+        {#if selectedItem}
+          <button type="button" class="clear-btn" on:click={() => (selectedItem = '')}>
+            ✕
+          </button>
+        {/if}
         {#if showDropdown}
           <ul class="dropdown">
             {#each filteredItems as item}
@@ -517,11 +550,12 @@
         {/if}
       </div>
 
-      <!-- Input for Category and dropdown for category list -->
-      <div class="category-input" style="position: relative;">
+      <!-- Input for Category and Dropdown -->
+      <div class="input-wrapper">
         <label for="category">Category:</label>
         <input
           type="text"
+          id="category"
           bind:value={selectedCategory}
           on:input={filterCategories}
           on:focus={showAllCategoriesOnFocus}
@@ -529,6 +563,11 @@
           placeholder="Select or type category"
           autocomplete="off"
         />
+        {#if selectedCategory}
+          <button type="button" class="clear-btn" on:click={() => (selectedCategory = '')}>
+            ✕
+          </button>
+        {/if}
         {#if showCategoryDropdown}
           <ul class="dropdown">
             {#each filteredCategories as category}
@@ -540,17 +579,33 @@
         {/if}
       </div>
 
-      <!-- Inputs for Price and Date (User can edit them) -->
-      <div>
-        <label for="price">Price:</label>
-        <input 
-          type="tel" 
-          id="price" 
-          bind:value={selectedPrice}
-          on:focus={handlePriceFocus}
-          readonly
-        />
+      <div class="input-row">
+        <!-- Price Input -->
+        <div class="input-wrapper" style="width: 65%;">
+          <label for="price">Price:</label>
+          <input 
+            type="tel" 
+            id="price" 
+            bind:value={selectedPrice}
+            on:focus={handlePriceFocus}
+            on:input={handlePriceInput}
+            readonly
+          />
+        </div>
 
+        <!-- Quantity Input -->
+        <div class="input-wrapper" style="width: 30%; margin-left: auto;">
+          <label for="quantity">Quantity:</label>
+          <input 
+            type="number" 
+            id="quantity" 
+            bind:value={selectedQuantity} 
+            min="1"
+          />
+        </div>
+      </div>
+
+      <div class="input-wrapper">
         <label for="date">Purchase Date:</label>
         <input type="date" id="date" bind:value={purchaseDate} />
       </div>
@@ -576,24 +631,23 @@
             <div class="calculator-row">
               {#each row as button}
                 <button 
-                  class="calc-button" 
-                  on:click={() => onCalculatorButtonClick(button)}
+                class="calc-button {typeof button === 'string' && !['C', '000', 'Del', 'OK'].includes(button) ? 'number' : ''}"
+                on:click={() => onCalculatorButtonClick(button)}
                 >
                   {button}
                 </button>
               {/each}
             </div>
           {/each}
-          <div class="calculator-row">
+          <div class="calculator-row full-row">
             <button 
-              class="calc-button del-btn" 
-              on:click={() => onCalculatorButtonClick('Del')}
+            class="calc-button delete" 
+            on:click={() => onCalculatorButtonClick('Del')}
             >
               ⌫
             </button>
-            <div class="spacer"></div>
             <button 
-              class="calc-button ok-btn" 
+              class="calc-button action-button" 
               on:click={closeCalculator}
             >
               OK
@@ -627,30 +681,40 @@
           Total: Rp {parseFloat(calculateTotalAmount(date)).toLocaleString()}
         </span>
       </div>
-      <ul class="purchased-items-list">
+      <div class="purchased-items-list">
         {#each purchasedItems.filter((item) => item.date === date) as item, index}
-          <li data-id={item.id} class="purchased-item {highlightedItemId === item.id ? 'highlighted' : ''}" on:click={() => selectPurchasedItem(item.id)}>
+          <div
+            role="button"
+            tabindex="0"
+            data-id={item.id}
+            class="purchased-item {highlightedItemId === item.id ? 'highlighted' : ''}" 
+            on:click={() => selectPurchasedItem(item.id)}
+            on:keydown={(e) => e.key === 'Enter' && selectPurchasedItem(item.id)}
+          >
             <div class="item-content">
               <span class="item-number">{index + 1}.</span>
               <span class="item-details">{item.name} - {item.category}</span>
-              <span class="item-price">Rp {item.price.toLocaleString()}</span>
+              {#if item.quantity > 1}
+                <span class="quantity-box">{item.quantity}</span>
+              {/if}
+              <span class="item-price">Rp {(item.price * item.quantity).toLocaleString()}</span>
               {#if itemToDelete === item.id}
                 <button class="delete-btn" on:click={(e) => { e.stopPropagation(); deleteItem(item.id); }}>
                   🗑️
                 </button>
               {/if}
             </div>
-          </li>
+          </div>
         {/each}
-      </ul>
+      </div>
     </div>
   {/each}
 </main>
 
 <style>
   main {
-    max-width: 90%;
-    width: 600px;
+    max-width: 100%;
+    width: 100%;
     margin: 0 auto;
     padding: 7px;
     height: 100%;
@@ -664,6 +728,10 @@
   h2 {
     display: block;
     margin-top: 0;
+  }
+  
+  label {
+    font-size: 0.7rem;
   }
 
   h1 {
@@ -706,17 +774,81 @@
 
   .input-section {
     margin-top: 7px;
-  }
-
-  .item-name, .category-input {
     position: relative;
+    display: block;
     width: 100%;
   }
+
+  .input-section input {
+    width: 100%;
+    padding-right: 30px; /* Ensure there is space for the clear button */
+  }
+
+  .input-wrapper {
+    position: relative;
+    width: 100%;
+    margin-bottom: 3px; /* Add space between each input section */
+
+  }
+
+  .input-wrapper input {
+    width: 100%;
+    padding: 10px;
+    padding-right: 30px; /* Space for the clear button */
+    font-size: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    transition: box-shadow 0.2s;
+  }
+
+  .input-wrapper .dropdown {
+    list-style-type: none;
+    padding: 0;
+    margin: 5px 0;
+    border: 1px solid #ccc;
+    max-height: 200px;
+    overflow-y: auto;
+    background: #333; /* Update background color to match the theme */
+    position: absolute;
+    top: 100%; /* Place dropdown just below the input */
+    left: 0;
+    width: 100%; /* Set width to match the input field */
+    z-index: 10; /* Ensure the dropdown appears on top of other elements */
+    font-size: 1rem;
+  }
+
+  .clear-btn {
+    position: absolute;
+    right: 10px;
+    top: 65%; /* Position it vertically centered */
+    transform: translateY(-50%); /* Center it vertically within the input box */
+    background: #ccc; /* Light background to make it look like a button */
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%; /* Make it round */
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.3s, transform 0.2s;
+  }
+
+  .clear-btn:hover {
+    background: #888; /* Darken on hover for interaction feedback */
+  }
+
+  .clear-btn:active {
+    transform: scale(0.9); /* Slightly shrink when pressed */
+  }
+
 
   input {
     width: 80%;
     padding: 10px;
-    margin-bottom: 10px;
+    margin-bottom: 0;
     font-size: 1rem;
     border: 1px solid #ccc;
     border-radius: 5px;
@@ -726,6 +858,23 @@
   input:focus {
     box-shadow: 0px 0px 10px rgba(50, 205, 50, 0.5);
     outline: none;
+  }
+
+  .input-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 3px;
+  }
+
+  .quantity-box {
+    display: inline-block;
+    border: 1px solid #ccc;
+    padding: 2px 4px;
+    font-size: 0.8rem;
+    border-radius: 4px;
+    margin-left: 5px;
+    margin-right: 5px; /* Space between quantity and price */
+    align-self: center; /* Align quantity box next to total price */
   }
 
   button {
@@ -749,7 +898,7 @@
     padding: 0;
     margin: 5px;
     border: 1px solid #ccc;
-    max-height: 300px;
+    max-height: 200px;
     overflow-y: auto;
     background: #333; /* Update background color to match the theme */
     position: absolute;
@@ -804,22 +953,6 @@
     transform: translateX(-50%);
     z-index: 1000;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-  }
-
-  ul {
-    padding: 0;
-    list-style-type: none;
-    padding: 0;
-  }
-
-  li {
-    cursor: pointer;
-    margin: 2px 0;
-    padding: 5px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    transition: transform 0.3s ease;
   }
 
   .refresh-message {
@@ -891,11 +1024,6 @@
   text-overflow: ellipsis; /* Use ellipsis for overflowed text */
 }
 
-  .list-item {
-    position: relative;
-    transition: all 0.3s ease;
-  }
-
   .purchased-item {
     display: flex;
     justify-content: space-between;
@@ -920,10 +1048,6 @@
 
   .purchased-item:active {
     transform: scale(0.98);
-  }
-
-  .purchased-item.selected {
-    background: #444;
   }
 
   .purchased-items-list {
@@ -989,26 +1113,17 @@
 
   .calculator-row {
     display: flex;
-    justify-content: space-between;
     gap: 8px;
   }
 
-  .spaced-row {
+  .full-row {
     display: flex;
-    align-items: center;
-    justify-content: space-around;
+    gap: 8px;
   }
 
-  .calc-button.delete-btn,
-  .calc-button.ok-btn {
-    flex: 1; /* Make both buttons occupy equal space */
-  }
-
-  .spacer {
-    flex: 0.3; /* Control the empty space between Delete and OK buttons */
-  }
 
   .calc-button {
+  flex: 1; /* Make all buttons occupy equal width */
     padding: 12px;
     font-size: 1.2rem;
     border: none;
@@ -1019,24 +1134,33 @@
     transition: background 0.2s;
   }
 
+  .calc-button.number {
+    background: #FFA500; /* Orange color for number buttons */
+  }
+
+  .calc-button.number:hover {
+    background: #FF8C00; /* Darker orange on hover for a better visual cue */
+  }
+
+
+  .calc-button.delete {
+    background: #ff4444; /* Red color for the Delete button */
+  }
+
+  .action-button {
+    flex: 1; /* Make both action buttons (Delete and OK) equal in size */
+  }
+
   .calc-button:hover {
     background: #228B22;
   }
 
+  .calc-button.delete:hover {
+    background: #ff2222; /* Darker red for the Delete button when hovered */
+  }
+
   .calc-button:active {
     transform: scale(0.98);
-  }
-
-  .calc-button.span-half {
-    grid-column: span 1; /* Take up half the row each */
-  }
-
-  .calc-button.ok-btn {
-    background: #32CD32; /* OK button background */
-  }
-
-  .calc-button.del-btn {
-    background: #ff4444; /* Delete button background */
   }
 
 

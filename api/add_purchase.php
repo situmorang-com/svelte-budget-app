@@ -19,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $data = json_decode(file_get_contents('php://input'), true);
 
         // Ensure data is valid
-        if (isset($data['name'], $data['category'], $data['price'], $data['date'])) {
+        if (isset($data['name'], $data['category'], $data['price'], $data['quantity'], $data['date'])) {
             $dbPath = './purchases.db'; // Update path accordingly
 
             if (!file_exists($dbPath)) {
@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $db = new SQLite3($dbPath);
 
             // Prepare SQL statement
-            $stmt = $db->prepare('INSERT INTO purchased_items (name, category, price, date) VALUES (:name, :category, :price, :date)');
+            $stmt = $db->prepare('INSERT INTO purchased_items (name, category, price, quantity, date) VALUES (:name, :category, :price,:quantity, :date)');
             if (!$stmt) {
                 throw new Exception("Failed to prepare the SQL statement");
             }
@@ -39,6 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->bindValue(':name', $data['name'], SQLITE3_TEXT);
             $stmt->bindValue(':category', $data['category'], SQLITE3_TEXT);
             $stmt->bindValue(':price', $data['price'], SQLITE3_FLOAT);
+            $stmt->bindValue(':quantity', $data['quantity'], SQLITE3_INTEGER);
             $stmt->bindValue(':date', $data['date'], SQLITE3_TEXT);
 
             // Execute statement
