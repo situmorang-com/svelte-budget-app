@@ -1,6 +1,5 @@
 <script>
-  import { onMount } from 'svelte';
-  import { swipe } from 'svelte-gestures';
+  import { onMount, onDestroy } from 'svelte';
   import { openDB } from 'idb';
   // import groceriesData from '../api/groceries.json'; // Import groceries data from external JSON file
 
@@ -21,10 +20,9 @@
   let showInputs = false; // Controls visibility of inputs
   let showAddButton = true;  // State to control button visibility
   let showCalculator = false;
+  let calculatorPosition = { top: '0px', left: '0px' };
+  let highlightedItemId = null; // Track which purchased item is highlighted
   let itemToDelete = null; // Track which item is pending deletion
-
-
-
 
   // Load groceries from JSON file
   async function loadGroceries() {
@@ -92,6 +90,7 @@
       }
     }
   }
+
   // Sync groceries from IndexedDB to the server
   async function syncGroceriesWithServer() {
     if (navigator.onLine) {
@@ -352,6 +351,34 @@
       // .replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   }
 
+
+
+  // Handle selecting a purchased item from the list
+  function selectPurchasedItem(itemId) {
+    highlightedItemId = highlightedItemId === itemId ? null : itemId;
+    itemToDelete = highlightedItemId;
+  }
+
+  function showDeleteButton(itemId) {
+    itemToDelete = itemId;
+  }
+
+  function hideDeleteButton(event) {
+    if (!event.target.closest('.purchased-item') && !event.target.closest('.delete-btn')) {
+      highlightedItemId = null;
+      itemToDelete = null;
+    }
+  }
+
+  // Attach and detach the event listener to avoid memory leaks
+  onMount(() => {
+    document.addEventListener('click', hideDeleteButton);
+  });
+
+  onDestroy(() => {
+    document.removeEventListener('click', hideDeleteButton);
+  });
+
   // Function to delete a purchased item
   async function deleteItem(itemId) {
     try {
@@ -382,62 +409,7 @@
     } catch (error) {
       console.error('Error deleting item:', error);
     }
-  }
 
-  // Handle click and hold to delete an item
-  function handleHoldStart(itemId, event) {
-    event.preventDefault(); // Prevent default button behavior
-    event.stopPropagation(); // Ensure that no child content prevents the event from reaching the `li`const button = event.currentTarget;
-    
-    const button = event.currentTarget;
-    let holdTimer;
-    let isHolding = false;
-
-    // Add visual feedback class
-    button.classList.add('holding');
-    
-    // Start the hold timer
-    holdTimer = setTimeout(() => {
-      isHolding = true;
-      deleteItem(itemId);
-      button.classList.remove('holding');
-    }, 1000);
- // 1000 ms (1 second) hold duration
-
-    // Attach event listeners to cancel the timer if the user releases the mouse
-    // const element = document.querySelector(`button[data-id="${itemId}"]`);
-
-    // Cancel hold if the mouse is released or leaves the element
-    function cancelHold() {
-      if (!isHolding) {
-        clearTimeout(holdTimer);
-        button.classList.remove('holding');
-      }
-    }
-
-    // Add event listeners for hold cancellation
-    button.addEventListener('mouseup', cancelHold, { once: true });
-    button.addEventListener('mouseleave', cancelHold, { once: true });
-    button.addEventListener('touchend', cancelHold, { once: true });
-    button.addEventListener('touchcancel', cancelHold, { once: true });
-  }
-
-  // Swipe handler for deleting an item
-  function handleSwipe(event, itemId) {
-    console.log("Swipe detected for item:", itemId)
-    if (event.detail.direction === 'left') {
-      console.log("Swipe left detected for item ID:", itemId); // Add this line for debugging
-      // Add a class to trigger swipe animation
-      const itemElement = document.querySelector(`li[data-id="${itemId}"]`);
-      if (itemElement) {
-        itemElement.classList.add('swiped-left');
-        
-        // Wait for the animation to complete before deleting the item
-        setTimeout(() => {
-          deleteItem(itemId);
-        }, 500); // Duration should match the animation length
-      }
-    }
   }
 
   // Sort unique dates in descending order
@@ -453,10 +425,58 @@
       selectedPrice = "";
     } else if (value === "Del") {
       selectedPrice = selectedPrice.slice(0, -1);
+    } else if (value === "000") {
+      selectedPrice += "000";
     } else {
       selectedPrice += value;
     }
   }
+
+  function handlePriceFocus(event) {
+    showCalculator = true;
+
+    // Position the calculator below the input and align with the left edge of the screen
+    const { bottom } = event.target.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+
+    calculatorPosition = {
+      top: `${bottom + window.scrollY + 5}px`,
+      left: `5px`, // Align to the screen edge to ensure it’s not cut off
+    };
+
+    // Prevent keyboard from showing by blurring the input immediately
+    event.target.blur();
+  }
+
+  function handleClickOutside(event) {
+    const calculatorEl = document.querySelector('.calculator');
+    if (
+      !event.target.closest('.calculator') &&
+      !event.target.closest('#price')
+    ) {
+      showCalculator = false;
+    }
+  }
+
+  function closeCalculator() {
+    showCalculator = false;
+  }
+
+  // Prevent iOS keyboard from showing when calculator is open
+  function preventFocus(event) {
+    event.preventDefault();
+  }
+
+  // Attach and detach the event listener to avoid memory leaks
+  onMount(() => {
+    document.addEventListener('click', handleClickOutside);
+  });
+
+  onDestroy(() => {
+    document.removeEventListener('click', handleClickOutside);
+  });
+
+
 </script>
 
 <main>
@@ -524,10 +544,11 @@
       <div>
         <label for="price">Price:</label>
         <input 
-          type="text" 
+          type="tel" 
           id="price" 
           bind:value={selectedPrice}
-          on:focus={() => (showCalculator = true)}
+          on:focus={handlePriceFocus}
+          readonly
         />
 
         <label for="date">Purchase Date:</label>
@@ -546,14 +567,39 @@
 
       <!-- Calculator Component -->
       {#if showCalculator}
-      <div class="calculator">
-        {#each [["7", "8", "9"], ["4", "5", "6"], ["1", "2", "3"], ["C", "0", "Del"]] as row}
+      <div 
+        class="calculator"
+        style="top: {calculatorPosition.top}; left: {calculatorPosition.left};"
+        >
+        <div class="calculator-grid">
+          {#each [["7", "8", "9"], ["4", "5", "6"], ["1", "2", "3"], ["C", "0", "000"]] as row}
+            <div class="calculator-row">
+              {#each row as button}
+                <button 
+                  class="calc-button" 
+                  on:click={() => onCalculatorButtonClick(button)}
+                >
+                  {button}
+                </button>
+              {/each}
+            </div>
+          {/each}
           <div class="calculator-row">
-            {#each row as button}
-              <button on:click={() => onCalculatorButtonClick(button)}>{button}</button>
-            {/each}
+            <button 
+              class="calc-button del-btn" 
+              on:click={() => onCalculatorButtonClick('Del')}
+            >
+              ⌫
+            </button>
+            <div class="spacer"></div>
+            <button 
+              class="calc-button ok-btn" 
+              on:click={closeCalculator}
+            >
+              OK
+            </button>
           </div>
-        {/each}
+        </div>
       </div>
       {/if}
       <!-- Button to refresh groceries data manually -->
@@ -583,19 +629,17 @@
       </div>
       <ul class="purchased-items-list">
         {#each purchasedItems.filter((item) => item.date === date) as item, index}
-          <li>
-            <button
-              class="purchased-item"
-              data-id={item.id}
-              on:mousedown={(event) => handleHoldStart(item.id, event)}
-              on:touchstart={(event) => handleHoldStart(item.id, event)}
-            >
-              <div class="item-content">
-                <span class="item-number">{index + 1}.</span>
-                <span class="item-details">{item.name} - {item.category}</span>
-                <span class="item-price">Rp {item.price.toLocaleString()}</span>
-              </div>
-            </button>
+          <li data-id={item.id} class="purchased-item {highlightedItemId === item.id ? 'highlighted' : ''}" on:click={() => selectPurchasedItem(item.id)}>
+            <div class="item-content">
+              <span class="item-number">{index + 1}.</span>
+              <span class="item-details">{item.name} - {item.category}</span>
+              <span class="item-price">Rp {item.price.toLocaleString()}</span>
+              {#if itemToDelete === item.id}
+                <button class="delete-btn" on:click={(e) => { e.stopPropagation(); deleteItem(item.id); }}>
+                  🗑️
+                </button>
+              {/if}
+            </div>
           </li>
         {/each}
       </ul>
@@ -608,61 +652,60 @@
     max-width: 90%;
     width: 600px;
     margin: 0 auto;
-    padding: 20px;
-    height: 100vh;
-    position: fixed;
-    left: 50%;
-    transform: translateX(-50%);
+    padding: 7px;
+    height: 100%;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch; /* Enables smooth scrolling on iOS */
   }
-
+  * {
+    box-sizing: border-box;
+  }
   label,
   h2 {
     display: block;
-    margin-top: 10px;
+    margin-top: 0;
   }
 
   h1 {
     margin-top: 0;
-    margin-bottom: 5px;
+    margin-bottom: 0;
   }
 
   .plus-button {
-  margin: 10px auto; /* Adjust margin to fit mobile screens */
+    margin: 10px auto; /* Adjust margin to fit mobile screens */
 
-  font-size: 2.5rem; /* Keeps the plus sign visible but adjust based on preference */
-  width: 70px; /* Set width to make it smaller */
-  height: 70px; /* Set height equal to width to form a perfect circle */
-  padding: 0; /* Remove padding to avoid making it larger */
-  border: none;
-  /* background: #444; */
-  background: linear-gradient(135deg, #32CD32, #228B22);
-  color: white;
-  cursor: pointer;
-  text-align: center;
-  border-radius: 50%; /* Make it a perfect circle */
-  transition: background 0.3s, transform 0.2s;
-  display: flex; /* Center the "+" sign */
-  align-items: center; /* Vertical centering */
-  justify-content: center; /* Horizontal centering */
-  margin: 20px auto; /* Center the button horizontally */
-  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
-}
+    font-size: 2.5rem; /* Keeps the plus sign visible but adjust based on preference */
+    width: 70px; /* Set width to make it smaller */
+    height: 70px; /* Set height equal to width to form a perfect circle */
+    padding: 0; /* Remove padding to avoid making it larger */
+    border: none;
+    /* background: #444; */
+    background: linear-gradient(135deg, #32CD32, #228B22);
+    color: white;
+    cursor: pointer;
+    text-align: center;
+    border-radius: 50%; /* Make it a perfect circle */
+    transition: background 0.3s, transform 0.2s;
+    display: flex; /* Center the "+" sign */
+    align-items: center; /* Vertical centering */
+    justify-content: center; /* Horizontal centering */
+    margin: 20px auto; /* Center the button horizontally */
+    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
+  }
 
-.plus-button:hover {
-  /* background: #555; */
-  transform: scale(1.1); /* Slight zoom effect for interaction feedback */
-  box-shadow: 0px 6px 15px rgba(0, 0, 0, 0.3);
-}
+  .plus-button:hover {
+    /* background: #555; */
+    transform: scale(1.1); /* Slight zoom effect for interaction feedback */
+    box-shadow: 0px 6px 15px rgba(0, 0, 0, 0.3);
+  }
 
-.plus-button:active {
+  .plus-button:active {
     transform: scale(0.95);
     box-shadow: 0px 3px 8px rgba(0, 0, 0, 0.2);
   }
 
   .input-section {
-    margin-top: 20px;
+    margin-top: 7px;
   }
 
   .item-name, .category-input {
@@ -688,11 +731,12 @@
   button {
     width: 100%;
     padding: 5px;
-    margin-bottom: 10px;
-    font-size: 1.5rem;
+    /* margin-bottom: 10px; */
+    font-size: 1rem;
     cursor: pointer;
     transition: opacity 0.5s ease-in-out;
     background: linear-gradient(135deg, #32CD32, #228B22);
+    color: white;
   }
 
   .fade-out {
@@ -711,39 +755,40 @@
     position: absolute;
     width: 100%; /* Set width to match the input field */
     z-index: 10;
-    font-size: 1.5rem; 
+    font-size: 1rem; 
     /* box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); */
     /* border-radius: 4px; */
   }
 
-.dropdown li {
-  margin: 0; /* Remove default margin */
-}
+  .dropdown li {
+    margin: 0; /* Remove default margin */
+  }
 
-.dropdown button {
-  width: 100%;
-  padding: 2px 8px;
-  /* background: #444;  */
-  background: none; /* Remove default button background */
-  color: white;
-  border: none;
-  text-align: left; /* Align text to the left */
-  font-size: 1.5rem; 
-  cursor: pointer;
-}
+  .dropdown button {
+    width: 100%;
+    padding: 2px 8px;
+    /* background: #444;  */
+    background: none; /* Remove default button background */
+    color: white;
+    border: none;
+    text-align: left; /* Align text to the left */
+    font-size: 1rem; 
+    cursor: pointer;
+  }
 
-.dropdown button:hover {
-  background: #444; /* Darker shade on hover for better visual feedback */
-}
-.dropdown button:focus {
-  outline: none; /* Remove default outline on focus */
-  background: #555; /* Change background color when focused for accessibility */
-  border-left: 3px solid #888; /* Optional: Add a visual indicator when focused */
-}
+  .dropdown button:hover {
+    background: #444; /* Darker shade on hover for better visual feedback */
+  }
 
-.dropdown button:active {
-  background: #666; /* A slightly different shade when button is pressed */
-}
+  .dropdown button:focus {
+    outline: none; /* Remove default outline on focus */
+    background: #555; /* Change background color when focused for accessibility */
+    border-left: 3px solid #888; /* Optional: Add a visual indicator when focused */
+  }
+
+  .dropdown button:active {
+    background: #666; /* A slightly different shade when button is pressed */
+  }
 
 
   .notification {
@@ -777,11 +822,6 @@
     transition: transform 0.3s ease;
   }
 
-  .item-content {
-    flex: 1;
-    padding: 5px;
-  }
-
   .refresh-message {
     background-color: #4caf50;
     color: white;
@@ -811,110 +851,224 @@
     font-weight: bold;
   }
 
-  .purchased-items-list {
-    list-style-type: none;
-    overflow-x: auto; /* Allow horizontal scrolling */
-    padding-left: 0;
-    margin-left: 0; /* Remove any unwanted left margin */
+
+  .item-content {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between; /* Adjust to distribute elements evenly */
+    position: relative;
+    flex-wrap: wrap; /* Allow items to wrap if they don't fit */
   }
 
-.purchased-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 5px 0;
-  z-index: 100;
-  background: none;
-  transition: background-color 0.3s ease;
-  cursor: pointer;
-
-}
-
-  .purchased-item.swiped-left {
-  transform: translateX(-100%) !important; /* Move the element off to the left */
-  opacity: 0; /* Fade out during the swipe */
-}
-
-  .purchased-item:hover {
-    background-color: #444;
-  }
-
-  .purchased-item.holding {
-    background-color: #666;
-    transform: scale(0.98);
-  }
-
-.item-content {
-  display: flex;
-  width: 100%;
-  align-items: center;
-}
   .item-number {
-    margin-right: 10px;
+    margin-right: 7px;
+    font-size: 0.8rem;
   }
 
   .item-details {
     flex-grow: 1;
+    flex-shrink: 1;
+    flex-basis: 60%; /* Adjust this to ensure the detail takes up an appropriate amount of space */
     text-align: left;
+    text-align: left;
+    font-size: 0.8rem;
   }
 
   .item-price {
     text-align: right;
     width: 100px;
+    font-size: 0.8rem;
   }
 
-
-  @media (max-width: 768px) {
-  main {
-    padding: 10px; /* Reduce padding for smaller screens */
-  }
-
-  .plus-button {
-    width: 60px;
-    height: 60px;
-    font-size: 2.5rem; /* Adjust font size for smaller screens */
-  }
-
-  /* .purchase-header {
-    flex-direction: column; 
-    align-items: flex-start;
-  } */
-
-  .item-price {
-    text-align: left; /* Ensure better alignment on smaller screens */
-    width: auto;
-  }
+  /* Handle item content text */
+.item-number,
+.item-details,
+.item-price {
+  font-size: 0.8rem; /* Make text smaller to fit better */
+  white-space: nowrap; /* Prevent breaking to new lines */
+  overflow: hidden;
+  text-overflow: ellipsis; /* Use ellipsis for overflowed text */
 }
 
-.calculator {
+  .list-item {
+    position: relative;
+    transition: all 0.3s ease;
+  }
+
+  .purchased-item {
+    display: flex;
+    justify-content: space-between;
+    box-sizing: border-box;
+    width: 100%;
+    padding: 10px;
+    background: #333;
+    border: none;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    transition: all 0.3s ease;
+    display: flex; /* To hold the item-content and delete button */
+    align-items: center;
+    color: white;
+    overflow: hidden; /* Prevent content from overflowing */
+  }
+
+  .purchased-item:hover {
+    background-color: #444;
+  }
+
+
+  .purchased-item:active {
+    transform: scale(0.98);
+  }
+
+  .purchased-item.selected {
+    background: #444;
+  }
+
+  .purchased-items-list {
+    list-style-type: none;
+    overflow-x: hidden; /* Prevent horizontal scrolling */
+    width: 100%; /* Ensure it takes the full width of the container */
+    box-sizing: border-box; /* Include padding and borders in the width */
+    padding-left: 0;
+    margin-left: 0; /* Remove any unwanted left margin */
+  }
+
+  .highlighted {
+    background-color: #555;
+  }
+
+  .delete-btn {
+    background: #ff4444; /* Red color */
+    color: white; /* White trash icon */
+    width: 30px; /* Set fixed width */
+    height: 30px; /* Set fixed height */
+    border: none;
+    border-radius: 50%; /* Make it round */
+    font-size: 1rem;
+    cursor: pointer;
+    position: absolute; /* Position it properly */
+    right: 10px; /* Align it on the right side */
+    top: 50%; /* Center vertically */
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
+    z-index: 100; /* Make sure it appears on top of other elements */
+    }
+
+  .delete-btn:hover {
+    background: #ff2222; /* Darker red for hover effect */
+  }
+
+
+  @keyframes slideOut {
+    to {
+      transform: translateX(-100%);
+      opacity: 0;
+    }
+  }
+
+  .calculator {
+    width: calc(100% - 10px); /* Make it almost full width with small margin */
+    max-width: 300px;
+    background: #222;
+    border-radius: 10px;
+    padding: 10px;
+    z-index: 10;
+    position: absolute;
+    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
+  }
+
+  .calculator-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
-    width: 80%;
-    margin-top: 15px;
+    gap: 8px;
   }
 
   .calculator-row {
     display: flex;
     justify-content: space-between;
-    width: 100%;
+    gap: 8px;
   }
 
-  .calculator button {
-    width: 100%;
-    padding: 20px;
-    font-size: 1.5rem;
+  .spaced-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+  }
+
+  .calc-button.delete-btn,
+  .calc-button.ok-btn {
+    flex: 1; /* Make both buttons occupy equal space */
+  }
+
+  .spacer {
+    flex: 0.3; /* Control the empty space between Delete and OK buttons */
+  }
+
+  .calc-button {
+    padding: 12px;
+    font-size: 1.2rem;
     border: none;
     border-radius: 8px;
     background: #32CD32;
     color: white;
-    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
     cursor: pointer;
     transition: background 0.2s;
   }
 
-  .calculator button:hover {
+  .calc-button:hover {
     background: #228B22;
   }
 
+  .calc-button:active {
+    transform: scale(0.98);
+  }
+
+  .calc-button.span-half {
+    grid-column: span 1; /* Take up half the row each */
+  }
+
+  .calc-button.ok-btn {
+    background: #32CD32; /* OK button background */
+  }
+
+  .calc-button.del-btn {
+    background: #ff4444; /* Delete button background */
+  }
+
+
+  @media (max-width: 768px) {
+    main {
+      width: 100%;
+      max-width: 100%;
+      padding: 10px; /* Reduce padding for smaller screens */
+    }
+
+    .plus-button {
+      width: 60px;
+      height: 60px;
+      font-size: 2.5rem; /* Adjust font size for smaller screens */
+    }
+
+    /* .purchase-header {
+      flex-direction: column; 
+      align-items: flex-start;
+    } */
+
+    .item-price {
+      text-align: left; /* Ensure better alignment on smaller screens */
+      width: auto;
+    }
+
+    .calculator {
+      max-width: 100%;
+    }
+
+    .calc-button {
+      padding: 7px 7px;
+    }
+  }
 </style>
