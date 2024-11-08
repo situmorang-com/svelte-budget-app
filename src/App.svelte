@@ -806,7 +806,7 @@
     padding: 0;
     margin: 5px 0;
     border: 1px solid #ccc;
-    max-height: 200px;
+    max-height: 150px;
     overflow-y: auto;
     background: #333; /* Update background color to match the theme */
     position: absolute;
@@ -898,7 +898,7 @@
     padding: 0;
     margin: 5px;
     border: 1px solid #ccc;
-    max-height: 200px;
+    max-height: 150px;
     overflow-y: auto;
     background: #333; /* Update background color to match the theme */
     position: absolute;
