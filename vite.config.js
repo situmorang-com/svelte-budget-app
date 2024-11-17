@@ -9,16 +9,12 @@ export default defineConfig({
     viteStaticCopy({
       targets: [
         {
-          src: 'public/service-worker.js', // Ensure the service worker file is included
-          dest: '.' // Copies to the root of `dist`
-        },
-        {
-          src: 'public/groceries.json', // Copy `groceries.json` to `dist`
-          dest: '.' // Copies to the root of `dist`
-        },
-        {
           src: 'src/assets/icons', // Location of your icons
-          dest: 'icons' // Output directory
+          dest: '.' // Output directory
+        },
+        {
+          src: 'api', // Location of your api and groceries.json
+          dest: '.' // Output directory
         },
         {
           src: 'src/assets/favicon.svg',  // Location of your favicon
@@ -32,6 +28,7 @@ export default defineConfig({
     }),
     VitePWA({
       registerType: 'autoUpdate',
+      includeAssets: ['favicon.svg', 'robots.txt', 'apple-touch-icon.png'],
       manifest: {
         name: 'Grocery App',
         short_name: 'Grocery',
@@ -73,6 +70,7 @@ export default defineConfig({
     })
   ],
   build: {
+    sourcemap: true,
     manifest: true,
     rollupOptions: {
       output: {
