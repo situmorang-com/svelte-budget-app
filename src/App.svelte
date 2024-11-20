@@ -95,7 +95,17 @@
     }
   }
 
-  async function storePendingSync(type: string, data: { date: string; amount?: number; name?: string; category?: string; price?: number; quantity?: number; }) {
+  async function storePendingSync(
+    type: string,
+    data: {
+      date: string;
+      amount?: number;
+      name?: string;
+      category?: string;
+      price?: number;
+      quantity?: number;
+    },
+  ) {
     const tx = db.transaction("pendingSyncs", "readwrite");
     await tx.objectStore("pendingSyncs").put({ type, data });
   }
@@ -108,7 +118,7 @@
       try {
         const tx = db.transaction("pendingSyncs", "readonly");
         const pendingSyncs = await tx.objectStore("pendingSyncs").getAll();
-
+        console.log(pendingSyncs);
         for (const syncData of pendingSyncs) {
           const { type, data } = syncData;
 
@@ -140,7 +150,10 @@
     }
   }
 
-  async function addBudgetToServer(budgetData: { date: string; amount: number; }) {
+  async function addBudgetToServer(budgetData: {
+    date: string;
+    amount: number;
+  }) {
     try {
       const response = await fetch("/api/add_budget.php", {
         method: "POST",
@@ -156,17 +169,18 @@
       }
     } catch (error) {
       console.error("Error adding budget to server:", error);
-      await storePendingSync("budget", budgetData);
       throw error;
     }
   }
 
   // Additional addPurchaseToServer and addGroceryToServer functions...
   async function addPurchaseToServer(purchaseData: {
-          name: string; category: string; price: number; // Ensure price is parsed as a number
-          quantity: number; // Convert to number with default value of 1
-          date: string;
-      }) {
+    name: string;
+    category: string;
+    price: number; // Ensure price is parsed as a number
+    quantity: number; // Convert to number with default value of 1
+    date: string;
+  }) {
     try {
       const response = await fetch("/api/add_purchase.php", {
         method: "POST",
@@ -271,7 +285,6 @@
 
         filteredItems = groceries; // Set the filtered items to the sorted list initially
         filteredCategories = categoryList; // Set filtered categories initially
-        console.log (groceries);
       } else {
         console.error(
           "Failed to fetch groceries from server:",
@@ -283,10 +296,14 @@
     }
   }
 
-  function handleOnline() {
+  async function handleOnline() {
     isOnline.set(true);
+    await loadGroceriesfromiDB();
+    await loadBudgetfromiDB();
+    await loadPurchasesfromiDB();
     processPendingSyncs();
     setupServerSentEvents(); // Reconnect SSE when back online
+    showNotificationMessage("You are back online. Syncing data.");
   }
 
   function handleOffline() {
@@ -397,7 +414,9 @@
     itemToDelete = itemId;
   }
 
-  function hideDeleteButton(event: { target: { closest: (arg0: string) => any; }; }) {
+  function hideDeleteButton(event: {
+    target: { closest: (arg0: string) => any };
+  }) {
     if (
       !event.target.closest(".purchased-item") &&
       !event.target.closest(".delete-btn")
@@ -407,7 +426,7 @@
     }
   }
 
-  function showNotificationMessage(message:string) {
+  function showNotificationMessage(message: string) {
     notificationMessage = message;
     showNotification = true;
 
@@ -479,10 +498,12 @@
     selectedPrice = formatNumberWithCommas(selectedPrice);
   }
 
-  function handlePriceInput(event: { target: { value: any; }; }) {
+  function handlePriceInput(event: { target: { value: any } }) {
     selectedPrice = formatNumberWithCommas(event.target.value);
   }
-  function handlePriceFocus(event: { target: { getBoundingClientRect: () => any; blur: () => void; }; }) {
+  function handlePriceFocus(event: {
+    target: { getBoundingClientRect: () => any; blur: () => void };
+  }) {
     showCalculator = true;
 
     // Get the position of the price input relative to the container
@@ -500,7 +521,9 @@
     event.target.blur();
   }
 
-  function handleClickOutside(event: { target: { closest: (arg0: string) => any; }; }) {
+  function handleClickOutside(event: {
+    target: { closest: (arg0: string) => any };
+  }) {
     const calculatorEl = document.querySelector(".calculator");
     if (
       !event.target.closest(".calculator") &&
@@ -515,7 +538,7 @@
   }
 
   // Prevent iOS keyboard from showing when calculator is open
-  function preventFocus(event: { preventDefault: () => void; }) {
+  function preventFocus(event: { preventDefault: () => void }) {
     event.preventDefault();
   }
 
@@ -594,7 +617,7 @@
         // Update IndexedDB first
         const tx = db.transaction("purchases", "readwrite");
         await tx.objectStore("purchases").put(newItem);
-        // await db.put("purchases", newItem); 
+        // await db.put("purchases", newItem);
 
         // Add item to purchased list in the frontend
         purchasedItems = [...purchasedItems, newItem];
@@ -616,7 +639,7 @@
 
         showInputs = false; // Hide input fields
         showCalculator = false; // Hide calculator if open
-        showNotificationMessage(newItem.name + " is added to Purchased Items.")
+        showNotificationMessage(newItem.name + " is added to Purchased Items.");
 
         // Attempt to add to server
         await addPurchaseToServer(newItem);
@@ -624,14 +647,20 @@
         console.error("Error adding purchase locally:", error);
         // Store in pending syncs if it fails
         await storePendingSync("purchases", newItem);
-        showNotificationMessage("Offline - New Purchase data will be synced later");
+        showNotificationMessage(
+          "Offline - New Purchase data will be synced later",
+        );
       }
     } else {
       alert("Please fill in all fields, including date.");
     }
   }
 
-  async function addGrocery(newGrocery: { name: any; category?: string; price?: number; }) {
+  async function addGrocery(newGrocery: {
+    name: any;
+    category?: string;
+    price?: number;
+  }) {
     try {
       // Update IndexedDB first
       const tx = db.transaction("groceries", "readwrite");
@@ -640,7 +669,7 @@
       groceries = [...groceries, newGrocery];
 
       // Attempt to add to server
-      showNotificationMessage(newGrocery.name + " is added to Search List.")
+      showNotificationMessage(newGrocery.name + " is added to Search List.");
       await addGroceryToServer(newGrocery);
     } catch (error) {
       console.error("Error adding grocery locally:", error);
@@ -651,7 +680,6 @@
       );
     }
   }
-
 
   function setupServerSentEvents() {
     const eventSource = new EventSource("/api/data_updates.php");
@@ -699,31 +727,34 @@
         const store = tx.objectStore("groceries");
         const groceriesData = await store.getAll();
         await tx.done;
+        console.log(groceriesData);
         groceries = groceriesData;
+        // If IndexedDB is empty, fetch groceries from the server or JSON
         if (groceries.length === 0) {
-          console.log("empty groceries in IndexedDB");
-          await fetchGroceries();
-          try {
-            console.log ("trying to add")
-            console.log (groceries);
-            const tx = db.transaction("groceries", "readwrite");
-            const store = tx.objectStore("groceries");
-            for (const item of groceries) {
-              console.log("Adding item to IndexedDB:", item);
-              await store.put(item);
+          // Await the completion of fetchGroceries() to ensure groceries is populated
+          await fetchGroceries(); // Assuming this populates the global variable `groceries`
+
+          // After fetching, make sure `groceries` is populated before proceeding
+          if (groceries && groceries.length > 0) {
+            try {
+              const txWrite = db.transaction("groceries", "readwrite");
+              const storeWrite = txWrite.objectStore("groceries");
+              for (const item of groceries) {
+                await storeWrite.put(item);
+              }
+            } catch (error) {
+              console.error("Error adding grocery locally:", error);
             }
-            // await tx.done;
-          } catch (error) {
-            console.error("Error adding grocery locally:", error);
+          } else {
+            console.error("Failed to fetch groceries data from JSON.");
           }
         }
         // Sort groceries alphabetically by name
         groceries = groceries.sort((a, b) => a.name.localeCompare(b.name));
-        console.log ("groeceries sorted")
         categoryList = Array.from(
           new Set(groceries.map((item) => item.category)),
         ).sort();
-        
+
         filteredItems = groceries; // Set the filtered items to the sorted list initially
         filteredCategories = categoryList; // Set filtered categories initially
       }
@@ -751,7 +782,7 @@
           }
         }
         purchasedItems = purchasedItems.sort(
-            (a, b) => new Date(b.date) - new Date(a.date),
+          (a, b) => new Date(b.date) - new Date(a.date),
         );
       }
     } catch (error) {
