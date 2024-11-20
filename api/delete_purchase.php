@@ -26,7 +26,7 @@ try {
     $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
     // Prepare the DELETE statement
-    $stmt = $db->prepare('DELETE FROM purchased_items WHERE id = :id');
+    $stmt = $db->prepare('DELETE FROM purchases WHERE id = :id');
     $stmt->bindParam(':id', $purchaseId, PDO::PARAM_INT);
 
     // Execute the DELETE statement

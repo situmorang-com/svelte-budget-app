@@ -1,6 +1,6 @@
 sqlite> .schema
 CREATE TABLE sqlite_sequence(name,seq);
-CREATE TABLE purchased_items (
+CREATE TABLE purchases (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     category TEXT NOT NULL,

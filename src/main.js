@@ -19,11 +19,4 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-window.addEventListener('online', () => {
-  console.log('Network status: Online. Syncing groceries...');
-  syncGroceriesWithServer();
-  fetchPurchasedItems();
-});
-
-
 export default app

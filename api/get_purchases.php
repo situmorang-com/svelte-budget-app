@@ -15,7 +15,7 @@ try {
     $db = new SQLite3($dbPath);
 
     // Query to select all purchased items
-    $result = $db->query('SELECT * FROM purchased_items');
+    $result = $db->query('SELECT * FROM purchases');
 
     // Array to hold all purchased items
     $purchases = [];

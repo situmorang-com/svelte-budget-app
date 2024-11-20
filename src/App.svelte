@@ -16,8 +16,6 @@
   let purchasedItems: any[] = [];
   let purchaseDate: string = new Date().toISOString().split("T")[0];
   let showNotification: boolean = false;
-  let refreshMessage: string = ""; // Variable to store refresh message
-  let showRefreshMessage: boolean = false; // Boolean to control display of message
   let showInputs: boolean = false; // Controls visibility of inputs
   let showAddButton: boolean = true; // State to control button visibility
   let showCalculator: boolean = false;
@@ -28,43 +26,18 @@
   let highlightedItemId: number | null = null; // Track which purchased item is highlighted
   let itemToDelete: number | null = null; // Track which item is pending deletion
   let showBudgetModal: boolean = false;
-  let modalPosition: { top: string, left: string } = { top: '0px', left: '0px' };
+  let modalPosition: { top: string; left: string } = {
+    top: "0px",
+    left: "0px",
+  };
   let budgetAmount: number = 0;
-  let budgetDate: string = new Date().toISOString().split('T')[0];
-  let budgetHistory: { date: string; amount: number }[] = [];
+  let budgetDate: string = new Date().toISOString().split("T")[0];
+  let budget: { date: string; amount: number }[] = [];
   let budgetTotal = writable(0);
-  let isOnline = navigator.onLine;
-  let retryAttempts = writable(0); // Store to track retry attempts
+  let isOnline = writable(navigator.onLine);
   let addBudgetMessage = writable(""); // Store to display messages to the user
-
-  // Load groceries from JSON file
-  async function loadGroceries() {
-    try {
-      const response = await fetch('/api/serve_groceries.php?t=' + new Date().getTime(), {
-        cache: 'no-cache',
-      });
-      const responseData = await response.json();
-
-      if (!responseData.groceries) {
-        throw new Error('Groceries field is missing in response');
-      }
-
-      groceries = responseData.groceries;
-
-      // Sort groceries alphabetically by name
-      groceries = groceries.sort((a, b) => a.name.localeCompare(b.name));
-
-      // Extract unique categories
-      categoryList = Array.from(new Set(groceries.map((item) => item.category))).sort();
-
-      filteredItems = groceries; // Set the filtered items to the sorted list initially
-      filteredCategories = categoryList; // Set filtered categories initially
-    } catch (error) {
-      console.error('Failed to load groceries data:', error);
-    }
-  }
-
-
+  let notificationMessage = "";
+  let db: IDBPDatabase<any> | undefined;
 
   function clearSelectedItem() {
     selectedItem = "";
@@ -77,207 +50,249 @@
   }
 
   // Open or create an IndexedDB local device storage database
-  async function openDatabase() {
-    return openDB("budget-management", 2, {
-      upgrade(db, oldVersion, newVersion, transaction) {
-        if (oldVersion < 1) {
-          db.createObjectStore('purchases', { keyPath: 'id', autoIncrement: true });
-        }
-        if (oldVersion < 2) {
-          db.createObjectStore('budget', { keyPath: 'id', autoIncrement: true });
-        }
-        if (!db.objectStoreNames.contains("purchases")) {
-          db.createObjectStore("purchases", {
-            keyPath: "id",
-            autoIncrement: true,
-          });
-        }
-        // Create an object store for groceries
-        if (!db.objectStoreNames.contains("groceries")) {
-          db.createObjectStore("groceries", { keyPath: "name" }); // Using `name` as the key
-        }
-        // Create an object store for budget
-        if (!db.objectStoreNames.contains("budget")) {
-          db.createObjectStore("budget", {
-            keyPath: "id",
-            autoIncrement: true,
-          });
-        }
-      },
-    });
-  }
-
-  // Fetch purchased items from IndexedDB and sync with server if online SQLite database using PHP endpoint
-  async function fetchPurchasedItems() {
-    const db = await openDatabase();
-    purchasedItems = await db.getAll("purchases");
-
-    if (navigator.onLine) {
-      try {
-        const response = await fetch("/api/get_purchases.php");
-        const result = await response.json();
-
-        if (result.status === "success") {
-          purchasedItems = result.data;
-
-          // Update IndexedDB with server data
-          const tx = db.transaction("purchases", "readwrite");
-          await tx.objectStore("purchases").clear();
-          for (const item of purchasedItems) {
-            await tx.objectStore("purchases").put(item);
-          }
-
-          refreshMessage =
-            "Data has been successfully refreshed from the server.";
-          setTimeout(() => {
-            refreshMessage = "";
-          }, 3000);
-        }
-      } catch (error) {
-        console.error("Error fetching purchased items:", error);
-      }
-    }
-  }
-
-  async function syncPurchasedItemsWithServer() {
-    if (navigator.onLine) {
-      try {
-        const db = await openDatabase();
-        const purchasedItems = await db.getAll("purchases");
-
-        for (const item of purchasedItems) {
-          try {
-            const response = await fetch("/api/update_purchase.php", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(item),
+  async function openDatabase(retryCount = 0) {
+    try {
+      db = await openDB("budget-management", 4, {
+        upgrade(db, oldVersion) {
+          if (!db.objectStoreNames.contains("purchases")) {
+            db.createObjectStore("purchases", {
+              keyPath: "id",
+              autoIncrement: true,
             });
-            const result = await response.json();
-
-            if (result.status === "success") {
-              console.log(`Purchased item synced successfully: ${item.name}`);
-              // Optionally remove the synced item from IndexedDB if it is no longer needed
-              await db.delete("purchases", item.id);
-            } else {
-              console.error(`Failed to sync item ${item.name}:`, result.message);
-            }
-          } catch (error) {
-            console.error("Error syncing purchased item:", error);
           }
-        }
-      } catch (error) {
-        console.error("Error opening database:", error);
+
+          if (!db.objectStoreNames.contains("budget")) {
+            db.createObjectStore("budget", {
+              keyPath: "id",
+              autoIncrement: true,
+            });
+          }
+
+          if (!db.objectStoreNames.contains("groceries")) {
+            db.createObjectStore("groceries", { keyPath: "name" });
+          }
+
+          if (oldVersion < 4 && !db.objectStoreNames.contains("pendingSyncs")) {
+            db.createObjectStore("pendingSyncs", {
+              keyPath: "id",
+              autoIncrement: true,
+            });
+          }
+        },
+      });
+    } catch (error) {
+      console.error("Failed to open database:", error);
+      if (retryCount < 3) {
+        setTimeout(
+          () => openDatabase(retryCount + 1),
+          1000 * Math.pow(2, retryCount),
+        ); // Exponential backoff
+      } else {
+        showNotificationMessage(
+          "Failed to open database. Please refresh the page or try again later.",
+        );
       }
-    } else {
-      console.warn("Device is offline. Unable to sync purchased items.");
     }
   }
 
-  // Sync groceries from IndexedDB to the server
-  async function syncGroceriesWithServer() {
-    if (navigator.onLine) {
-      const db = await openDatabase();
-      const groceries = await db.getAll("groceries");
-
-      for (const grocery of groceries) {
-        try {
-          const response = await fetch("/api/update_groceries.php", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(grocery),
-          });
-          const result = await response.json();
-
-          if (result.status === "success") {
-            console.log(`Grocery item synced successfully: ${grocery.name}`);
-            // Optionally remove the synced item from IndexedDB if it is no longer needed
-            await db.delete("groceries", grocery.name);
-          } else {
-            console.error(
-              `Failed to sync item ${grocery.name}:`,
-              result.message,
-            );
-          }
-        } catch (error) {
-          console.error("Error syncing grocery item:", error);
-        }
-      }
-    } else {
-      console.warn("Device is offline. Unable to sync groceries.");
-    }
+  async function storePendingSync(type: string, data: { date: string; amount?: number; name?: string; category?: string; price?: number; quantity?: number; }) {
+    const tx = db.transaction("pendingSyncs", "readwrite");
+    await tx.objectStore("pendingSyncs").put({ type, data });
   }
 
-  async function processPendingTasks() {
-    const pendingTasks = await getPendingTasks(); // Assuming a function that gets all pending actions
-    for (const task of pendingTasks) {
+  async function processPendingSyncs() {
+    if (isOnline) {
+      showNotificationMessage("Syncing data with server...");
+      // updateNetworkStatus();
+
       try {
-        await task.execute(); // Assuming `execute()` performs the task, like sending to a server
-        console.log("Pending task processed:", task);
+        const tx = db.transaction("pendingSyncs", "readonly");
+        const pendingSyncs = await tx.objectStore("pendingSyncs").getAll();
+
+        for (const syncData of pendingSyncs) {
+          const { type, data } = syncData;
+
+          try {
+            if (type === "budget") {
+              await addBudgetToServer(data);
+              await fetchBudget(); // Fetch latest budget data after successful sync
+            } else if (type === "purchases") {
+              await addPurchaseToServer(data);
+              await fetchPurchases(); // Fetch latest purchases after successful sync
+            } else if (type === "groceries") {
+              await addGroceryToServer(data);
+              await fetchGroceries(); // Fetch latest groceries after successful sync
+            }
+
+            // If sync was successful, remove from pendingSyncs
+            const deleteTx = db.transaction("pendingSyncs", "readwrite");
+            await deleteTx.objectStore("pendingSyncs").delete(syncData.id);
+          } catch (error) {
+            console.error(`Error processing sync for type ${type}:`, error);
+          }
+        }
+
+        showNotificationMessage("Data successfully synced with the server.");
       } catch (error) {
-        console.error("Failed to process task:", task, error);
+        console.error("Error processing pending syncs:", error);
+        showNotificationMessage("Failed to sync data. Will retry later.");
       }
     }
   }
 
+  async function addBudgetToServer(budgetData: { date: string; amount: number; }) {
+    try {
+      const response = await fetch("/api/add_budget.php", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(budgetData),
+      });
 
-  onMount(() => {
-    // Initial setup functions
-    syncGroceriesWithServer();
-    loadGroceries();
-    fetchPurchasedItems();
-    loadPurchasedItems();
-    loadBudgetHistory();
-    setupServerSentEvents();
-
-    // Set the current network status
-    updateNetworkStatus();
-
-    // Add event listeners for online and offline
-    window.addEventListener('online', handleOnlineStatus);
-    window.addEventListener('offline', updateNetworkStatus);
-
-    // Cleanup on destroy
-    return () => {
-      window.removeEventListener('online', handleOnlineStatus);
-      window.removeEventListener('offline', updateNetworkStatus);
-    };
-  });
-
-  function handleOnlineStatus() {
-    console.log("Network status: Online. Syncing with server...");
-
-    // Update network status to online
-    updateNetworkStatus();
-
-    // Sync groceries with the server
-    syncGroceriesWithServer();
-    loadGroceries();
-
-
-    // Sync purchased items with the server
-    syncPurchasedItemsWithServer();
-
-    // Refetch data from the server
-    refetchData();
-
-    // Reconnect to Server-Sent Events
-    setupServerSentEvents();  // This is your function that sets up SSE
-
-    // Process pending offline tasks
-    processPendingTasks();
+      const result = await response.json();
+      if (result.status !== "success") {
+        throw new Error("Failed to add budget to server");
+      }
+    } catch (error) {
+      console.error("Error adding budget to server:", error);
+      await storePendingSync("budget", budgetData);
+      throw error;
+    }
   }
 
-  function updateNetworkStatus() {
-    isOnline = navigator.onLine;
+  // Additional addPurchaseToServer and addGroceryToServer functions...
+  async function addPurchaseToServer(purchaseData: {
+          name: string; category: string; price: number; // Ensure price is parsed as a number
+          quantity: number; // Convert to number with default value of 1
+          date: string;
+      }) {
+    try {
+      const response = await fetch("/api/add_purchase.php", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(purchaseData),
+      });
+
+      const result = await response.json();
+      if (result.status !== "success") {
+        throw new Error("Failed to add purchase to server");
+      }
+    } catch (error) {
+      console.error("Error adding purchase to server:", error);
+      // Store in pending syncs if it fails
+      await storePendingSync("purchases", purchaseData);
+    }
   }
 
+  async function addGroceryToServer(groceryData: any) {
+    try {
+      const response = await fetch("/api/add_grocery.php", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(groceryData),
+      });
 
-  // Function to load purchased items and sort them by date (latest first)
-  function loadPurchasedItems() {
-    // Assuming purchasedItems is already populated with your data
-    // Sort purchased items by date in descending order (latest date first)
-    purchasedItems = purchasedItems.sort(
-      (a, b) => new Date(b.date) - new Date(a.date),
+      const result = await response.json();
+      if (result.status === "success") {
+        await fetchGroceries(); // Reload groceries data to include the newly added item
+      } else {
+        throw new Error("Failed to add grocery to server");
+      }
+    } catch (error) {
+      console.error("Error adding grocery to server:", error);
+      // Store in pending syncs if it fails
+      await storePendingSync("groceries", groceryData);
+    }
+  }
+
+  async function fetchBudget() {
+    try {
+      const response = await fetch("/api/get_budget_history.php");
+      const result = await response.json();
+
+      if (result.status === "success") {
+        budget = result.data;
+        updateBudgetTotal();
+      } else {
+        console.error(
+          "Failed to fetch budget history from server:",
+          result.message,
+        );
+      }
+    } catch (error) {
+      console.error("Error fetching budget history:", error);
+    }
+  }
+
+  async function fetchPurchases() {
+    try {
+      const response = await fetch("/api/get_purchases.php");
+      const result = await response.json();
+
+      if (result.status === "success") {
+        purchasedItems = result.data;
+        updateBudgetTotal();
+      } else {
+        console.error(
+          "Failed to fetch purchased items from server:",
+          result.message,
+        );
+      }
+    } catch (error) {
+      console.error("Error fetching purchased items:", error);
+    }
+  }
+
+  async function fetchGroceries() {
+    try {
+      const response = await fetch(
+        "/api/get_groceries.php?t=" + new Date().getTime(),
+        {
+          cache: "no-cache",
+        },
+      );
+      const result = await response.json();
+
+      if (result.status === "success" && Array.isArray(result.groceries)) {
+        groceries = result.groceries;
+
+        // Sort groceries alphabetically by name
+        groceries = groceries.sort((a, b) => a.name.localeCompare(b.name));
+
+        // Extract unique categories
+        categoryList = Array.from(
+          new Set(groceries.map((item) => item.category)),
+        ).sort();
+
+        filteredItems = groceries; // Set the filtered items to the sorted list initially
+        filteredCategories = categoryList; // Set filtered categories initially
+        console.log (groceries);
+      } else {
+        console.error(
+          "Failed to fetch groceries from server:",
+          result.message || "Unexpected data format",
+        );
+      }
+    } catch (error) {
+      console.error("Error fetching groceries:", error);
+    }
+  }
+
+  function handleOnline() {
+    isOnline.set(true);
+    processPendingSyncs();
+    setupServerSentEvents(); // Reconnect SSE when back online
+  }
+
+  function handleOffline() {
+    isOnline.set(false);
+    showNotificationMessage(
+      "You are offline. Changes will be synced once you're online.",
     );
   }
 
@@ -335,20 +350,20 @@
   }
 
   // Handle selecting an item
-  function selectItem(itemName) {
+  function selectItem(itemName: string) {
     selectedItem = itemName;
     showDropdown = false;
     updateSelection(itemName);
   }
 
   // Handle selecting a category from dropdown
-  function selectCategory(category) {
+  function selectCategory(category: string) {
     selectedCategory = category;
     showCategoryDropdown = false; // Hide category dropdown after selection
   }
 
   // Update category and price when a matching item is selected
-  function updateSelection(itemName) {
+  function updateSelection(itemName: string) {
     const item = groceries.find(
       (grocery) => grocery.name.toLowerCase() === itemName.toLowerCase(),
     );
@@ -364,122 +379,6 @@
     filteredItems = [];
   }
 
-  // Add selected item to purchased items list
-  async function addToPurchasedList() {
-    if (selectedItem && selectedCategory && selectedPrice && purchaseDate) {
-      showAddButton = false;
-
-      const newItem = {
-        name: selectedItem,
-        category: selectedCategory,
-        price: parseFloat(selectedPrice.replace(/,/g, "")) || 0, // Ensure price is parsed as a number
-        quantity: parseInt(selectedQuantity.toString(), 10) || 1, // Convert to number with default value of 1
-        date: purchaseDate,
-      };
-
-      // Step 1: Add to groceries.json and groceries within IndexedDB if item doesn't exist
-      const itemExists = groceries.some(
-        (grocery) => grocery.name.toLowerCase() === selectedItem.toLowerCase(),
-      );
-      if (!itemExists) {
-        try {
-          const newGroceryKind = {
-            name: newItem.name,
-            category: newItem.category,
-            price: newItem.price,
-          };
-          // add new grocery kind to IndexedDB
-          const db = await openDatabase();
-          await db.put("groceries", newGroceryKind);
-          console.log(`Grocery item added locally: ${newGroceryKind.name}`);
-        } catch (error) {
-          console.error("Error adding grocery to IndexedDB:", error);
-        }
-
-        try {
-          const response = await fetch("/api/update_groceries.php", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              name: newItem.name,
-              category: newItem.category,
-              price: newItem.price,
-            }),
-          });
-
-          const result = await response.json();
-          if (result.status === "success") {
-            await loadGroceries(); // Reload groceries data to include the newly added item
-          } else {
-            console.error(result.message);
-          }
-        } catch (error) {
-          console.error("Error adding item to groceries:", error);
-        }
-      }
-
-      // Step 2: Add to purchased items list in SQLite database
-      try {
-        const response = await fetch("/api/add_purchase.php", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(newItem),
-          // add new item to IndexedDB
-        });
-        const db = await openDatabase();
-        await db.put("purchases", newItem);
-        // const result = await response.json();
-        // Get raw response to inspect it if something goes wrong
-        const resultText = await response.text();
-        console.log("Raw response:", resultText);
-
-        // Try to parse JSON from the response
-        const result = JSON.parse(resultText);
-
-        if (result.status === "success") {
-          console.log("Item added to SQLite database successfully!");
-        } else {
-          console.error(result.message);
-        }
-      } catch (error) {
-        console.error("Error adding item to database:", error);
-      }
-
-      // Add item to purchased list in the frontend
-      purchasedItems = [...purchasedItems, newItem];
-
-      // Sort purchased items by date after adding a new one
-      purchasedItems = purchasedItems.sort(
-        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
-      );
-
-      updateBudgetTotal(-newItem.price * newItem.quantity);
-
-      // Reset selected item, category, and price
-      selectedItem = "";
-      selectedCategory = "";
-      selectedPrice = "";
-      selectedQuantity = 1;
-      purchaseDate = new Date().toISOString().split("T")[0];
-
-      showInputs = false; // Hide input fields
-      showCalculator = false; // Hide calculator if open
-
-      // Show notification for item added
-      showNotification = true;
-      setTimeout(() => {
-        showNotification = false;
-        showAddButton = true;
-      }, 3000); // Hide notification after 3 seconds
-    } else {
-      alert("Please fill in all fields, including date.");
-    }
-  }
-
   // Calculate total amount of purchases for a given date
   function calculateTotalAmount(date: string): string {
     return purchasedItems
@@ -489,16 +388,16 @@
   }
 
   // Handle selecting a purchased item from the list
-  function selectPurchasedItem(itemId) {
+  function selectPurchasedItem(itemId: number | null) {
     highlightedItemId = highlightedItemId === itemId ? null : itemId;
     itemToDelete = highlightedItemId;
   }
 
-  function showDeleteButton(itemId) {
+  function showDeleteButton(itemId: number | null) {
     itemToDelete = itemId;
   }
 
-  function hideDeleteButton(event) {
+  function hideDeleteButton(event: { target: { closest: (arg0: string) => any; }; }) {
     if (
       !event.target.closest(".purchased-item") &&
       !event.target.closest(".delete-btn")
@@ -508,17 +407,17 @@
     }
   }
 
-  // Attach and detach the event listener to avoid memory leaks
-  onMount(() => {
-    document.addEventListener("click", hideDeleteButton);
-  });
+  function showNotificationMessage(message:string) {
+    notificationMessage = message;
+    showNotification = true;
 
-  onDestroy(() => {
-    document.removeEventListener("click", hideDeleteButton);
-  });
+    setTimeout(() => {
+      showNotification = false;
+    }, 3000); // Hide notification after 3 seconds
+  }
 
   // Function to delete a purchased item
-  async function deleteItem(itemId) {
+  async function deleteItem(itemId: any) {
     try {
       // First update the UI immediately for better user experience
       purchasedItems = purchasedItems.filter((item) => item.id !== itemId);
@@ -542,7 +441,6 @@
       }
 
       // Also delete from IndexedDB
-      const db = await openDatabase();
       await db.delete("purchases", itemId);
     } catch (error) {
       console.error("Error deleting item:", error);
@@ -557,7 +455,7 @@
     );
   }
 
-  function formatNumberWithCommas(value) {
+  function formatNumberWithCommas(value: string) {
     // Remove all non-digit characters
     let cleanedValue = value.replace(/[^\d]/g, "");
 
@@ -566,7 +464,7 @@
   }
 
   // Handle calculator button click
-  function onCalculatorButtonClick(value) {
+  function onCalculatorButtonClick(value: string) {
     if (value === "C") {
       selectedPrice = "";
     } else if (value === "Del") {
@@ -581,10 +479,10 @@
     selectedPrice = formatNumberWithCommas(selectedPrice);
   }
 
-  function handlePriceInput(event) {
+  function handlePriceInput(event: { target: { value: any; }; }) {
     selectedPrice = formatNumberWithCommas(event.target.value);
   }
-  function handlePriceFocus(event) {
+  function handlePriceFocus(event: { target: { getBoundingClientRect: () => any; blur: () => void; }; }) {
     showCalculator = true;
 
     // Get the position of the price input relative to the container
@@ -602,7 +500,7 @@
     event.target.blur();
   }
 
-  function handleClickOutside(event) {
+  function handleClickOutside(event: { target: { closest: (arg0: string) => any; }; }) {
     const calculatorEl = document.querySelector(".calculator");
     if (
       !event.target.closest(".calculator") &&
@@ -617,19 +515,18 @@
   }
 
   // Prevent iOS keyboard from showing when calculator is open
-  function preventFocus(event) {
+  function preventFocus(event: { preventDefault: () => void; }) {
     event.preventDefault();
   }
 
-
   // Function to show the budget modal and position it near the budget element
   function showBudgetModalPosition() {
-    const budgetElement = document.querySelector('.budget-info');
+    const budgetElement = document.querySelector(".budget-info");
     if (budgetElement) {
       const rect = budgetElement.getBoundingClientRect();
       modalPosition = {
         top: `${rect.bottom + window.scrollY + 10}px`,
-        left: `${rect.left + window.scrollX}px`
+        left: `${rect.left + window.scrollX}px`,
       };
       showBudgetModal = true;
     }
@@ -639,130 +536,155 @@
   function closeBudgetModal() {
     showBudgetModal = false;
   }
-  
-  async function executeWithRetry(fn, retries = 3, delay = 1000) {
-   for (let i = 0; i < retries; i++) {
-     try {
-       return await fn();
-     } catch (error) {
-       if (i === retries - 1) throw error;
-       console.warn("Retrying due to error:", error);
-       await new Promise(resolve => setTimeout(resolve, delay));
-     }
-   }
-  } 
 
   async function addBudget(amount: number, date: string) {
     if (amount > 0 && date) {
-      let retries = 3; // Set retry limit
-      let retryDelay = 2000; // Retry delay in milliseconds
+      const budgetData = { date, amount };
+      try {
+        // Update IndexedDB first
+        const tx = db.transaction("budget", "readwrite");
+        await tx.objectStore("budget").put(budgetData);
 
-      for (let i = 0; i < retries; i++) {
-        try {
-          addBudgetMessage.set(`Adding budget attempt ${i + 1} of ${retries}...`);
-          const response = await fetch("/api/add_budget.php", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              date,
-              amount,
-            }),
-          });
+        // Update budget history in the UI
+        budget = [...budget, budgetData].sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+        );
+        updateBudgetTotal();
+        showBudgetModal = false;
 
-          const resultText = await response.text();
-          try {
-            const result = JSON.parse(resultText);
-            if (result.status === "success") {
-              const db = await openDatabase();
-              const tx = db.transaction("budget", "readwrite");
-              const newBudget = { date, amount };
-              await tx.objectStore("budget").put(newBudget);
-
-              budgetHistory = [...budgetHistory, newBudget];
-              budgetHistory = budgetHistory.sort(
-                (a, b) => new Date(b.date) - new Date(a.date)
-              );
-              updateBudgetTotal(amount);
-              showBudgetModal = false;
-              addBudgetMessage.set(""); // Clear any existing message
-              return; // Successfully added budget
-            } else {
-              console.error(result.message);
-              addBudgetMessage.set("Failed to add budget. " + result.message);
-            }
-          } catch (error) {
-            // If JSON parsing fails, show the raw error message
-            console.error("Error parsing response as JSON:", resultText);
-            addBudgetMessage.set("Unexpected response: " + resultText);
-          }
-        } catch (error) {
-          console.error("Error adding budget:", error);
-          addBudgetMessage.set("Error adding budget. Retrying...");
-        }
-
-        // Wait before retrying
-        await new Promise((resolve) => setTimeout(resolve, retryDelay));
-        retryAttempts.update((n) => n + 1);
+        // Attempt to add to server
+        await addBudgetToServer(budgetData);
+        await fetchBudget(); // Fetch the latest budget history after successful upload
+      } catch (error) {
+        console.error("Error adding budget locally:", error);
+        // If unable to add budget, store the sync task
+        await storePendingSync("budget", budgetData);
+        showNotificationMessage("Offline - Budget data will be synced later");
       }
-
-      // If all retries fail
-      addBudgetMessage.set("Failed to add budget after multiple attempts. Please try again later.");
-    } else {
-      alert("Please enter a valid amount and date.");
     }
   }
 
+  async function addPurchase() {
+    if (selectedItem && selectedCategory && selectedPrice && purchaseDate) {
+      showAddButton = false;
 
-  async function loadBudgetHistory() {
-    const db = await openDatabase();
-    const tx = db.transaction("budget", "readonly");
-    budgetHistory = await tx.objectStore("budget").getAll();
+      const newItem = {
+        name: selectedItem,
+        category: selectedCategory,
+        price: parseFloat(selectedPrice.replace(/,/g, "")) || 0, // Ensure price is parsed as a number
+        quantity: parseInt(selectedQuantity.toString(), 10) || 1, // Convert to number with default value of 1
+        date: purchaseDate,
+      };
 
-    // Sort budget history by date in descending order (most recent first)
-    budgetHistory = budgetHistory.sort(
-      (a, b) => new Date(b.date) - new Date(a.date)
-    );
+      // Step 1: Add to groceries.json and groceries within IndexedDB if item doesn't exist
+      const itemExists = groceries.some(
+        (grocery) => grocery.name.toLowerCase() === selectedItem.toLowerCase(),
+      );
+      if (!itemExists) {
+        const newGrocery = {
+          name: newItem.name,
+          category: newItem.category,
+          price: newItem.price,
+        };
+        // add new grocery kind to IndexedDB
+        addGrocery(newGrocery);
+      }
+      // Step 2: Add to purchased items list in SQLite database
+      try {
+        // Update IndexedDB first
+        const tx = db.transaction("purchases", "readwrite");
+        await tx.objectStore("purchases").put(newItem);
+        // await db.put("purchases", newItem); 
 
-    updateBudgetTotal();
+        // Add item to purchased list in the frontend
+        purchasedItems = [...purchasedItems, newItem];
+
+        // Sort purchased items by date after adding a new one
+        purchasedItems = purchasedItems.sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+        );
+
+        updateBudgetTotal(-newItem.price * newItem.quantity);
+
+        // Reset selected item, category, and price
+        selectedItem = "";
+        selectedCategory = "";
+        selectedPrice = "";
+        selectedQuantity = 1;
+        purchaseDate = new Date().toISOString().split("T")[0];
+        showAddButton = true;
+
+        showInputs = false; // Hide input fields
+        showCalculator = false; // Hide calculator if open
+        showNotificationMessage(newItem.name + " is added to Purchased Items.")
+
+        // Attempt to add to server
+        await addPurchaseToServer(newItem);
+      } catch (error) {
+        console.error("Error adding purchase locally:", error);
+        // Store in pending syncs if it fails
+        await storePendingSync("purchases", newItem);
+        showNotificationMessage("Offline - New Purchase data will be synced later");
+      }
+    } else {
+      alert("Please fill in all fields, including date.");
+    }
   }
 
+  async function addGrocery(newGrocery: { name: any; category?: string; price?: number; }) {
+    try {
+      // Update IndexedDB first
+      const tx = db.transaction("groceries", "readwrite");
+      await tx.objectStore("groceries").put(newGrocery);
 
-  function updateBudgetTotal(amount?: number) {
-    if (amount !== undefined) {
-      budgetTotal.update((n) => n + amount);
-    } else {
-      budgetTotal.set(
-        budgetHistory.reduce((total, entry) => total + entry.amount, 0) -
-          purchasedItems.reduce(
-            (total, item) => total + item.price * item.quantity,
-            0,
-          ),
+      groceries = [...groceries, newGrocery];
+
+      // Attempt to add to server
+      showNotificationMessage(newGrocery.name + " is added to Search List.")
+      await addGroceryToServer(newGrocery);
+    } catch (error) {
+      console.error("Error adding grocery locally:", error);
+      // Store in pending syncs if it fails
+      await storePendingSync("groceries", newGrocery);
+      showNotificationMessage(
+        "Offline - New Grocery Category data will be synced later",
       );
     }
   }
 
+
   function setupServerSentEvents() {
-    const eventSource = new EventSource("/api/budget_updates.php");
+    const eventSource = new EventSource("/api/data_updates.php");
+
     eventSource.onmessage = (event) => {
       try {
-        if (event.data !== "null" && event.data !== "") {
-          const updatedBudget = JSON.parse(event.data);
-          if (updatedBudget && updatedBudget.total !== undefined) {
-            budgetTotal.set(updatedBudget.total);
-          } else {
-            console.warn("Invalid data received from SSE:", event.data);
+        const updatedData = JSON.parse(event.data);
+
+        if (updatedData) {
+          // Update purchases data
+          if (updatedData.purchases) {
+            purchasedItems = updatedData.purchases;
+            console.log("Updated Purchases:", purchasedItems);
+          }
+
+          // Update budget total
+          if (updatedData.budget && updatedData.budget.total !== undefined) {
+            budgetTotal.set(updatedData.budget.total);
+            console.log("Updated Budget Total:", updatedData.budget.total);
+          }
+
+          // Update groceries data
+          if (updatedData.groceries) {
+            groceries = updatedData.groceries;
+            console.log("Updated Groceries:", groceries);
           }
         } else {
-          console.warn("Received null or empty data from SSE:", event.data);
+          console.warn("Received unexpected data from SSE:", event.data);
         }
       } catch (e) {
-        console.error("Invalid JSON received from SSE:", event.data);
+        console.error("Error parsing data from SSE:", e);
       }
     };
-
-
 
     eventSource.onerror = () => {
       console.error("SSE connection failed.");
@@ -770,12 +692,130 @@
     };
   }
 
-  // Attach and detach the event listener to avoid memory leaks
-  onMount(() => {
+  async function loadGroceriesfromiDB() {
+    try {
+      if (db) {
+        const tx = db.transaction("groceries", "readonly");
+        const store = tx.objectStore("groceries");
+        const groceriesData = await store.getAll();
+        await tx.done;
+        groceries = groceriesData;
+        if (groceries.length === 0) {
+          console.log("empty groceries in IndexedDB");
+          await fetchGroceries();
+          try {
+            console.log ("trying to add")
+            console.log (groceries);
+            const tx = db.transaction("groceries", "readwrite");
+            const store = tx.objectStore("groceries");
+            for (const item of groceries) {
+              console.log("Adding item to IndexedDB:", item);
+              await store.put(item);
+            }
+            // await tx.done;
+          } catch (error) {
+            console.error("Error adding grocery locally:", error);
+          }
+        }
+        // Sort groceries alphabetically by name
+        groceries = groceries.sort((a, b) => a.name.localeCompare(b.name));
+        console.log ("groeceries sorted")
+        categoryList = Array.from(
+          new Set(groceries.map((item) => item.category)),
+        ).sort();
+        
+        filteredItems = groceries; // Set the filtered items to the sorted list initially
+        filteredCategories = categoryList; // Set filtered categories initially
+      }
+    } catch (error) {
+      console.error("Failed to load groceries data:", error);
+    }
+  }
+
+  async function loadPurchasesfromiDB() {
+    try {
+      if (db) {
+        const tx = db.transaction("purchases", "readonly");
+        const store = tx.objectStore("purchases");
+        purchasedItems = await store.getAll();
+        await tx.done;
+        if (purchasedItems.length === 0) {
+          fetchPurchases();
+          if (db) {
+            const tx = db.transaction("purchases", "readwrite");
+            const store = tx.objectStore("purchases");
+            for (const item of purchasedItems) {
+              await store.put(item);
+            }
+            await tx.done;
+          }
+        }
+        purchasedItems = purchasedItems.sort(
+            (a, b) => new Date(b.date) - new Date(a.date),
+        );
+      }
+    } catch (error) {
+      console.error("Failed to load purchases:", error);
+    }
+  }
+
+  async function loadBudgetfromiDB() {
+    try {
+      if (db) {
+        const tx = db.transaction("budget", "readonly");
+        const store = tx.objectStore("budget");
+        const budgetData = await store.getAll();
+        budget = budgetData;
+        await tx.done;
+        if (budget.length === 0) {
+          fetchBudget();
+          if (db) {
+            const tx = db.transaction("budget", "readwrite");
+            const store = tx.objectStore("budget");
+            for (const item of budget) {
+              await store.put(item);
+            }
+            await tx.done;
+          }
+        }
+        budget.sort((a, b) => new Date(b.date) - new Date(a.date)); // Sort by most recent
+        updateBudgetTotal();
+      }
+    } catch (error) {
+      console.error("Failed to load budget data:", error);
+    }
+  }
+
+  function updateBudgetTotal() {
+    budgetTotal.set(
+      budget.reduce((total, entry) => total + entry.amount, 0) -
+        purchasedItems.reduce(
+          (total, item) => total + item.price * item.quantity,
+          0,
+        ),
+    );
+  }
+
+  onMount(async () => {
+    await openDatabase();
+    await loadGroceriesfromiDB();
+    await loadBudgetfromiDB();
+    await loadPurchasesfromiDB();
+    processPendingSyncs();
+    setupServerSentEvents();
+
+    document.addEventListener("click", hideDeleteButton);
     document.addEventListener("click", handleClickOutside);
+
+    // Add event listeners for online and offline
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
   });
 
   onDestroy(() => {
+    window.removeEventListener("offline", handleOffline);
+    window.removeEventListener("online", handleOnline);
+    document.removeEventListener("click", hideDeleteButton);
     document.removeEventListener("click", handleClickOutside);
   });
 </script>
@@ -788,7 +828,7 @@
     tabindex="0"
     aria-label="Open budget modal"
     on:click={showBudgetModalPosition}
-    on:keydown={(e) => e.key === 'Enter' && showBudgetModalPosition()}
+    on:keydown={(e) => e.key === "Enter" && showBudgetModalPosition()}
   >
     Budget: {#if $budgetTotal < 0}
       <span style="color: red;">Rp {$budgetTotal.toLocaleString()}</span>
@@ -797,9 +837,11 @@
     {/if}
   </div>
 
-  <!-- Notification Section -->
+  <!-- Your UI for managing budgets, groceries, and purchases -->
+
+  <!-- Notification Box -->
   {#if showNotification}
-    <div class="notification">Item added to purchased list!</div>
+    <div class="notification-box">{notificationMessage}</div>
   {/if}
 
   <!-- Plus Button to Show Inputs -->
@@ -913,7 +955,7 @@
 
       <!-- Button to add to purchased list -->
       {#if showAddButton}
-        <button class:fade-out={!showAddButton} on:click={addToPurchasedList}>
+        <button class:fade-out={!showAddButton} on:click={addPurchase}>
           Add to Purchased List
         </button>
       {/if}
@@ -965,11 +1007,6 @@
   <!-- Grouped List of Purchased Items -->
   <h2>Purchased Items</h2>
   <!-- Show refresh notification -->
-  {#if showRefreshMessage}
-    <div class="refresh-message">
-      {refreshMessage}
-    </div>
-  {/if}
 
   {#each getSortedUniqueDates() as date}
     <div class="purchase-group">
@@ -1029,20 +1066,36 @@
       aria-modal="true"
       on:click={closeBudgetModal}
     >
-      <div class="modal-content" role="document" on:click={(e) => e.stopPropagation()} on:keydown={(e) => e.key === 'Escape' && closeBudgetModal()} tabindex="0">
+      <div
+        class="modal-content"
+        role="document"
+        on:click={(e) => e.stopPropagation()}
+        on:keydown={(e) => e.key === "Escape" && closeBudgetModal()}
+        tabindex="0"
+      >
         <h3>Set New Budget</h3>
-        <input type="number" bind:value={budgetAmount} min="0" placeholder="Enter budget amount" />
+        <input
+          type="number"
+          bind:value={budgetAmount}
+          min="0"
+          placeholder="Enter budget amount"
+        />
         <label for="budget-date">Budget Date:</label>
         <input type="date" id="budget-date" bind:value={budgetDate} />
 
-        <button on:click={() => addBudget(budgetAmount, budgetDate)}>Add Budget</button>
+        <button on:click={() => addBudget(budgetAmount, budgetDate)}
+          >Add Budget</button
+        >
         <h4>Budget History</h4>
         <ul>
-          {#each budgetHistory as entry}
+          {#each budget as entry}
             <li>{entry.date}: Rp {entry.amount.toLocaleString()}</li>
           {/each}
         </ul>
-        <button on:click={() => (showBudgetModal = false)} aria-label="Close modal">Close</button>
+        <button
+          on:click={() => (showBudgetModal = false)}
+          aria-label="Close modal">Close</button
+        >
         {#if $addBudgetMessage}
           <div class="retry-message">{$addBudgetMessage}</div>
         {/if}
@@ -1050,10 +1103,9 @@
     </div>
   {/if}
 
-
   <!-- Online/Offline Indicator -->
-  <div class="network-status-indicator {isOnline ? 'online' : 'offline'}">
-    {isOnline ? 'online' : 'offline'}
+  <div class="network-status-indicator {$isOnline ? 'online' : 'offline'}">
+    {$isOnline ? "online" : "offline"}
   </div>
 </main>
 
@@ -1287,30 +1339,6 @@
     background: #666; /* A slightly different shade when button is pressed */
   }
 
-  .notification {
-    background-color: #4caf50;
-    color: white;
-    padding: 10px;
-    margin-bottom: 15px;
-    text-align: center;
-    border-radius: 4px;
-    position: fixed;
-    top: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 1000;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-  }
-
-  .refresh-message {
-    background-color: #4caf50;
-    color: white;
-    padding: 10px;
-    text-align: center;
-    border-radius: 4px;
-    margin-bottom: 15px;
-  }
-
   .purchase-group {
     margin-top: 20px;
   }
@@ -1511,10 +1539,10 @@
     margin-top: 10px;
     font-size: 1.2rem;
     border: 2px solid #ccc; /* Add border */
-    padding: 10px;          /* Add padding for space inside the border */
-    border-radius: 5px;     /* Optional rounded corners */
-    width: fit-content;     /* Width adjusted to the content */
-    margin: 10px auto;      /* Center the element horizontally */
+    padding: 10px; /* Add padding for space inside the border */
+    border-radius: 5px; /* Optional rounded corners */
+    width: fit-content; /* Width adjusted to the content */
+    margin: 10px auto; /* Center the element horizontally */
   }
 
   .modal-overlay {
@@ -1586,20 +1614,32 @@
     transition: opacity 0.3s ease-in-out;
   }
 
-.network-status-indicator.online {
-  background: rgba(0, 128, 0, 0.7); /* Green color for online status */
-}
+  .network-status-indicator.online {
+    background: rgba(0, 128, 0, 0.7); /* Green color for online status */
+  }
 
-.network-status-indicator.offline {
-  background: rgba(255, 0, 0, 0.7); /* Red color for offline status */
-}
+  .network-status-indicator.offline {
+    background: rgba(255, 0, 0, 0.7); /* Red color for offline status */
+  }
 
-.retry-message {
-  margin-top: 10px;
-  color: red; /* Indicate that it's a warning or error message */
-  font-weight: bold;
-}
+  .retry-message {
+    margin-top: 10px;
+    color: red; /* Indicate that it's a warning or error message */
+    font-weight: bold;
+  }
 
+  .notification-box {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 10px;
+    border-radius: 5px;
+    font-size: 0.9rem;
+    z-index: 1000;
+    transition: opacity 0.3s ease-in-out;
+  }
 
   @media (max-width: 768px) {
     main {
